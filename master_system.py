@@ -182,16 +182,17 @@
 #             except: pass
 
 import socket, json
-import numpy as np
-from lorenz_system import LorenzSystem
+import numpy as np # type: ignore
+from lorenz_system import LorenzSystem, LorenzParameters
 
 HOST, PORT = "127.0.0.1", 3000
 
 class MasterSystem:
     def __init__(self):
-        self.sys = LorenzSystem()
+        self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8/3)
+        self.sys = LorenzSystem(self.params)
+        self.steps = 10000
         self.sock = None
-        self.conn = None
 
     def start(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -221,11 +222,10 @@ class MasterSystem:
 
     def run(self):
         # Step 1: compute 10k trajectory
-        traj = self.sys.simulate_master([1, 1, 1], 10000)
+        traj = self.sys.run_steps(self.steps)
 
         # Step 2: pick packet
-        secret_idx = int(np.random.randint(0, 10000))
-        packet = self.sys.make_packet(traj, secret_idx)
+        packet = self.sys.make_packet(traj)
         digest = self.sys.hash_packet(packet)
         print("Master: packet before sending ->", packet[:5], "...")
         print("Master: packet hash ->", digest[:32], "...")
@@ -242,21 +242,12 @@ class MasterSystem:
         # Step 4: restart sync
         self.send({"type": "restart"})
         print("Master: restarting trajectory sync...")
-        x = np.array([1.0, 1.0, 1.0], dtype=float)
-        for step in range(1, 501):  # demo: 500 steps
-            x = x + self.sys.f_master(x) * self.sys.dt
-            self.send({"type": "sync", "step": step, "state": x.tolist()})
-            if step % 50 == 0:
-                ack = self.recv()
-                if ack and ack.get("ack") == "ok":
-                    print(f"Master: got ack at step {step}")
-                else:
-                    print(f"Master: no ack at step {step}, stopping sync")
-                    break
+        self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx])
+        self.sys.run_steps(self.steps)
 
         # Step 5: send encrypted message
         msg = "Hello World!"
-        enc_hex, mask = self.sys.xor_encrypt(msg, traj[secret_idx])
+        enc_hex, mask = self.sys.xor_encrypt(msg, self.sys.state_history[-1])
         print("Master: original msg =", msg)
         print("Master: mask =", mask[:len(msg)])
         print("Master: encrypted msg =", enc_hex)

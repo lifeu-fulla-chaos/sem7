@@ -206,15 +206,16 @@
 #     except Exception as e:
 #         print(f"Slave: fatal error -> {e}")
 
+
 import socket, json
-import numpy as np
-from lorenz_system import LorenzSystem
+import numpy as np # type: ignore
+from lorenz_system import LorenzSystem, LorenzParameters
 
 HOST, PORT = "127.0.0.1", 3000
 
 class SlaveSystem:
     def __init__(self):
-        self.sys = LorenzSystem()
+        self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8/3))
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.sock.connect((HOST, PORT))
@@ -271,7 +272,7 @@ class SlaveSystem:
                 print("Slave: packet after reception ->", packet[:5], "...")
                 self.secret_idx = int(np.sum(packet[:, 3]))
                 print("Slave: decoded index =", self.secret_idx)
-                self.traj = self.sys.simulate_master([1, 1, 1], 10000)
+                self.traj = self.sys.run_steps(10000)
                 self.ref_state = self.traj[self.secret_idx]
                 self.send({"ack": "decoded"})
                 break
@@ -280,27 +281,12 @@ class SlaveSystem:
         while True:
             msg = self.recv()
             if msg and msg.get("type") == "restart":
+                self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8/3),)
                 print("Slave: restart acknowledged")
                 break
 
         # Step 3: sync with ack every 50 steps
-        y = np.array([5.0, 5.0, 5.0], dtype=float)
-        while True:
-            msg = self.recv()
-            if not msg:
-                continue
-            if msg.get("type") == "sync":
-                step = msg["step"]
-                x = np.array(msg["state"], dtype=float)
-                y, _ = self.sys.simulate_slave_step(y, x)
-                if step % 50 == 0:
-                    self.send({"ack": "ok"})
-            elif msg.get("type") == "message":
-                enc_hex = msg["enc"]
-                dec, mask = self.sys.xor_decrypt(enc_hex, self.ref_state)
-                print("Slave: mask =", mask[:len(dec)])
-                print("Slave: decrypted msg =", dec)
-                break
+        
 
 if __name__ == "__main__":
     try:
