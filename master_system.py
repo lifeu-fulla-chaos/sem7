@@ -185,11 +185,9 @@ import socket, json
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
+from rsa_sharing import encrypt_master_key, derive_keys
 
 HOST, PORT = "127.0.0.1", 3000
-
-
-from rsa_sharing import encrypt_master_key, derive_keys
 
 
 class MasterSystem:
@@ -248,7 +246,9 @@ class MasterSystem:
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps)
         packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)
-        iv, ct, tag = encrypt_packet(packet, aes_key=self.aes_outer, hmac_key=self.hmac_key)
+        iv, ct, tag = encrypt_packet(
+            packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
+        )
 
         print("Master: packet before sending ->", packet[:5], "...")
         print("Master: packet hash ->", tag[:32], "...")
@@ -270,7 +270,7 @@ class MasterSystem:
 
         # Step 5: send encrypted message
         msg = "Hello World!"
-        enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1]) # type: ignore
+        enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1])  # type: ignore
         print("Master: original msg =", msg)
         print("Master: mask =", mask[: len(msg)])
         print("Master: encrypted msg =", enc_hex)

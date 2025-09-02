@@ -1,5 +1,5 @@
-from Cryptodome.Cipher import AES  # type: ignore
-from Cryptodome.Util.Padding import pad, unpad  # type: ignore
+from Crypto.Cipher import AES  # type: ignore
+from Crypto.Util.Padding import pad, unpad  # type: ignore
 import json, hashlib, hmac
 import numpy as np  # type: ignore
 

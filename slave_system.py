@@ -211,12 +211,9 @@ import socket, json
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
+from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 
 HOST, PORT = "127.0.0.1", 3000
-
-
-# ...existing code...
-from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 
 
 class SlaveSystem:
