@@ -188,10 +188,7 @@
 
 # lorenz_system.py
 import numpy as np # type: ignore
-import json, hashlib
 from scipy.integrate import solve_ivp # type: ignore
-from Cryptodome.Cipher import AES # type: ignore
-from Cryptodome.Util.Padding import pad, unpad # type: ignore
 
 
 class LorenzParameters:
@@ -248,52 +245,4 @@ class LorenzSystem:
         return np.array([u1, u2, u3], dtype=float), e
 
 
-    # -------- Bundle creation + SHA256 --------
-    @staticmethod
-    def make_packet(traj: np.ndarray, bundle_size: int = 500, aes_key: bytes = None):
-        rng = np.random.default_rng()
-        states = traj[rng.choice(traj.shape[0], size=bundle_size, replace=False)]
-        secret_idx = np.random.randint(0, 500)
-        cuts = np.sort(rng.integers(0, secret_idx + 1, size=bundle_size - 1)) if secret_idx > 0 else np.zeros(bundle_size - 1, dtype=int)
-        parts = np.diff(np.concatenate(([0], cuts, [secret_idx]))).astype(float)
-
-        # AES encrypt parts
-        if aes_key is None:
-            aes_key = rng.bytes(16)  # AES-128 random key
-        cipher = AES.new(aes_key, AES.MODE_CBC)
-        parts_bytes = pad(json.dumps(parts.tolist(), separators=(",", ":")).encode(), AES.block_size)
-        ct = cipher.encrypt(parts_bytes)
-        iv = cipher.iv
-
-        # Store encrypted parts as hex string
-        enc_parts = iv.hex() + ct.hex()
-
-        # Stack states with encrypted parts (as string)
-        packet = np.column_stack([states, np.full((bundle_size, 1), enc_parts)])
-        return packet, aes_key
-
-    @staticmethod
-    def hash_packet(packet: np.ndarray) -> str:
-        blob = json.dumps(packet.tolist(), separators=(",", ":")).encode()
-        return hashlib.sha256(blob).hexdigest()
-
-    # -------- XOR message using Lorenz state --------
-    @staticmethod
-    def derive_mask(state: np.ndarray, length: int) -> bytes:
-        s = json.dumps(np.asarray(state, dtype=float).tolist(), separators=(",", ":")).encode()
-        h = hashlib.sha256(s).digest()
-        return (h * ((length // len(h)) + 1))[:length]
-
-    @staticmethod
-    def xor_encrypt(msg: str, state: np.ndarray):
-        msg_b = msg.encode()
-        mask = LorenzSystem.derive_mask(np.array(state, dtype=float), len(msg_b))
-        enc = bytes([b ^ m for b, m in zip(msg_b, mask)])
-        return enc.hex(), mask
-
-    @staticmethod
-    def xor_decrypt(enc_hex: str, state: np.ndarray):
-        enc_b = bytes.fromhex(enc_hex)
-        mask = LorenzSystem.derive_mask(np.array(state, dtype=float), len(enc_b))
-        dec = bytes([b ^ m for b, m in zip(enc_b, mask)])
-        return dec.decode(errors="strict"), mask
+    

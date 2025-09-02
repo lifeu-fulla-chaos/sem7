@@ -100,7 +100,7 @@
 
 # if __name__ == "__main__":
 #     try:
-        
+
 #         SlaveSystem().run()
 #     except Exception as e:
 #         print(f"Slave: fatal error -> {e}")
@@ -208,14 +208,20 @@
 
 
 import socket, json
-import numpy as np # type: ignore
+import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
+from encryption import *
 
 HOST, PORT = "127.0.0.1", 3000
 
+
+# ...existing code...
+from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
+
+
 class SlaveSystem:
     def __init__(self):
-        self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8/3))
+        self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.sock.connect((HOST, PORT))
@@ -228,6 +234,22 @@ class SlaveSystem:
         self.traj = None
         self.ref_state = None
 
+        # RSA key generation and exchange
+        self.private_key, self.public_key = generate_rsa_keys()
+        self.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
+        # Wait for master key
+        while True:
+            msg = self.recv()
+            if msg and msg.get("type") == "master_key":
+                encrypted_master = bytes.fromhex(msg["encrypted_master"])
+                self.master_key = decrypt_master_key(self.private_key, encrypted_master)
+                self.aes_inner, self.aes_outer, self.hmac_key = derive_keys(
+                    self.master_key
+                )
+                print("Slave: received and decrypted master key")
+                break
+
+    # ...existing code...
     def send(self, obj):
         try:
             data = json.dumps(obj).encode() + b"\n"
@@ -259,18 +281,24 @@ class SlaveSystem:
                 continue
             if msg.get("type") == "packet":
                 try:
-                    packet = np.array(msg["packet"])
-                    rx_hash = msg["hash"]
-                    local_hash = self.sys.hash_packet(packet)
-                    if local_hash != rx_hash:
-                        print("Slave: hash mismatch -> packet tampered")
-                        continue
+                    # Outer AES/HMAC layer
+                    iv = bytes.fromhex(msg["iv"])
+                    ct = bytes.fromhex(msg["ct"])
+                    tag = bytes.fromhex(msg["tag"])
+
+                    packet = decrypt_packet(iv, ct, tag, self.aes_outer, self.hmac_key)
+
+                    # Inner AES layer for parts
+                    enc_parts = packet[0, -1]  # assuming all rows have same enc_parts
+                    parts = decrypt_parts(enc_parts, self.aes_inner)
+
+                    # Now you can use 'parts' to reconstruct secret_idx
+                    self.secret_idx = int(np.sum(parts))
                 except Exception as e:
-                    print(f"Slave: packet decode failed -> {e}")
+                    print(f"Slave: packet decrypt failed -> {e}")
                     continue
 
-                print("Slave: packet after reception ->", packet[:5], "...")
-                self.secret_idx = int(np.sum(packet[:, 3]))
+                print("Slave: packet after decryption ->", packet[:5], "...")
                 print("Slave: decoded index =", self.secret_idx)
                 self.traj = self.sys.run_steps(10000)
                 self.ref_state = self.traj[self.secret_idx]
@@ -281,12 +309,12 @@ class SlaveSystem:
         while True:
             msg = self.recv()
             if msg and msg.get("type") == "restart":
-                self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8/3),)
+                self.sys = LorenzSystem(
+                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
+                )
                 print("Slave: restart acknowledged")
                 break
 
-        # Step 3: sync with ack every 50 steps
-        
 
 if __name__ == "__main__":
     try:

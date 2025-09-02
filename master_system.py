@@ -29,7 +29,6 @@
 #             self.conn = None
 
 
-
 #     def recv(self):
 #         return json.loads(self.conn.recv(8192).decode())
 
@@ -181,18 +180,28 @@
 #             try: master.conn.close()
 #             except: pass
 
+import os
 import socket, json
-import numpy as np # type: ignore
+import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
+from encryption import *
 
 HOST, PORT = "127.0.0.1", 3000
 
+
+from rsa_sharing import encrypt_master_key, derive_keys
+
+
 class MasterSystem:
     def __init__(self):
-        self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8/3)
+        self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
         self.sock = None
+        self.master_key = None
+        self.aes_inner = None
+        self.aes_outer = None
+        self.hmac_key = None
 
     def start(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -221,16 +230,30 @@ class MasterSystem:
             return None
 
     def run(self):
+        # Step 0: RSA key exchange
+        while True:
+            msg = self.recv()
+            if msg and msg.get("type") == "rsa_pubkey":
+                pubkey = msg["pubkey"].encode()
+                self.master_key = os.urandom(32)
+                encrypted_master = encrypt_master_key(pubkey, self.master_key)
+                self.send(
+                    {"type": "master_key", "encrypted_master": encrypted_master.hex()}
+                )
+                self.aes_inner, self.aes_outer, self.hmac_key = derive_keys(
+                    self.master_key
+                )
+                print("Master: sent encrypted master key")
+                break
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps)
+        packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)
+        iv, ct, tag = encrypt_packet(packet, aes_key=self.aes_outer, hmac_key=self.hmac_key)
 
-        # Step 2: pick packet
-        packet = self.sys.make_packet(traj)
-        digest = self.sys.hash_packet(packet)
         print("Master: packet before sending ->", packet[:5], "...")
-        print("Master: packet hash ->", digest[:32], "...")
+        print("Master: packet hash ->", tag[:32], "...")
 
-        self.send({"type": "packet", "packet": packet.tolist(), "hash": digest})
+        self.send({"type": "packet", "iv": iv.hex(), "ct": ct.hex(), "tag": tag.hex()})
 
         # Step 3: wait for ack
         while True:
@@ -247,11 +270,12 @@ class MasterSystem:
 
         # Step 5: send encrypted message
         msg = "Hello World!"
-        enc_hex, mask = self.sys.xor_encrypt(msg, self.sys.state_history[-1])
+        enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1]) # type: ignore
         print("Master: original msg =", msg)
-        print("Master: mask =", mask[:len(msg)])
+        print("Master: mask =", mask[: len(msg)])
         print("Master: encrypted msg =", enc_hex)
         self.send({"type": "message", "enc": enc_hex})
+
 
 if __name__ == "__main__":
     master = MasterSystem()
@@ -262,5 +286,7 @@ if __name__ == "__main__":
         print(f"Master: fatal error -> {e}")
     finally:
         if master.conn:
-            try: master.conn.close()
-            except: pass
+            try:
+                master.conn.close()
+            except:
+                pass
