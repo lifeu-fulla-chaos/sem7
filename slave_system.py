@@ -307,9 +307,17 @@ class SlaveSystem:
             msg = self.recv()
             if msg and msg.get("type") == "restart":
                 self.sys = LorenzSystem(
-                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
+                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3), initial_state=self.ref_state
                 )
                 print("Slave: restart acknowledged")
+                break
+
+        while True:
+            msg = self.recv()
+            if msg and msg.get("type") == "message":
+                enc_hex = msg["enc"]
+                dec, _ = xor_decrypt(enc_hex, self.ref_state)
+                print("Slave: decrypted message =", dec)
                 break
 
 
