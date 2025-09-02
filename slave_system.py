@@ -230,6 +230,7 @@ class SlaveSystem:
         self.secret_idx = None
         self.traj = None
         self.ref_state = None
+        self.steps = 10000
 
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
@@ -307,16 +308,19 @@ class SlaveSystem:
             msg = self.recv()
             if msg and msg.get("type") == "restart":
                 self.sys = LorenzSystem(
-                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3), initial_state=self.ref_state
+                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
+                    initial_state=self.ref_state,
                 )
                 print("Slave: restart acknowledged")
                 break
 
+        self.sys.run_steps(self.steps)
         while True:
             msg = self.recv()
             if msg and msg.get("type") == "message":
                 enc_hex = msg["enc"]
-                dec, _ = xor_decrypt(enc_hex, self.ref_state)
+                print(self.sys.state_history[-1])  # type: ignore
+                dec, _ = xor_decrypt(enc_hex, self.sys.state_history[-1])  # type: ignore
                 print("Slave: decrypted message =", dec)
                 break
 

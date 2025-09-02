@@ -270,6 +270,7 @@ class MasterSystem:
 
         # Step 5: send encrypted message
         msg = "Hello World!"
+        print(self.sys.state_history[-1])  # type: ignore
         enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1])  # type: ignore
         print("Master: original msg =", msg)
         print("Master: mask =", mask[: len(msg)])
