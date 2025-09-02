@@ -212,16 +212,16 @@ import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
-
+from network import NetworkManager
 HOST, PORT = "127.0.0.1", 3000
 
 
 class SlaveSystem:
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.netManager = NetworkManager(HOST, PORT)
         try:
-            self.sock.connect((HOST, PORT))
+            self.netManager.connect()
             print("Slave: connected")
         except Exception as e:
             print(f"Slave: cannot connect -> {e}")
@@ -238,6 +238,7 @@ class SlaveSystem:
         # Wait for master key
         while True:
             msg = self.recv()
+            print(msg)
             if msg and msg.get("type") == "master_key":
                 encrypted_master = bytes.fromhex(msg["encrypted_master"])
                 self.master_key = decrypt_master_key(self.private_key, encrypted_master)
@@ -251,17 +252,17 @@ class SlaveSystem:
     def send(self, obj):
         try:
             data = json.dumps(obj).encode() + b"\n"
-            self.sock.sendall(data)
+            self.netManager.send_data(data)
         except Exception as e:
             print(f"Slave: send error -> {e}")
 
     def recv(self):
         try:
             while "\n" not in self.buf:
-                chunk = self.sock.recv(4096)
+                chunk = self.netManager.receive_data()
                 if not chunk:
                     return None
-                self.buf += chunk.decode()
+                self.buf += chunk
             line, self.buf = self.buf.split("\n", 1)
             return json.loads(line)
         except json.JSONDecodeError:

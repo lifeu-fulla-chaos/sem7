@@ -185,6 +185,7 @@ import socket, json
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
+from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 
 HOST, PORT = "127.0.0.1", 3000
@@ -195,34 +196,28 @@ class MasterSystem:
         self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
-        self.sock = None
+        self.netManager = NetworkManager(HOST, PORT)
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None
         self.hmac_key = None
 
     def start(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((HOST, PORT))
-        s.listen(1)
-        print("Master: waiting...")
-        self.conn, _ = s.accept()
-        print("Master: slave connected")
+        self.netManager.start_server()
 
     def send(self, obj):
         try:
             data = json.dumps(obj).encode() + b"\n"
-            self.conn.sendall(data)
+            self.netManager.send_data(data)
         except Exception as e:
             print(f"Master: send error -> {e}")
 
     def recv(self):
         try:
-            data = self.conn.recv(4096)
+            data = self.netManager.receive_data()
             if not data:
                 return None
-            return json.loads(data.decode().strip())
+            return json.loads(data)
         except Exception as e:
             print(f"Master: recv error -> {e}")
             return None
@@ -243,6 +238,7 @@ class MasterSystem:
                 )
                 print("Master: sent encrypted master key")
                 break
+
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps)
         packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)
@@ -250,8 +246,8 @@ class MasterSystem:
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
 
-        print("Master: packet before sending ->", packet[:5], "...")
-        print("Master: packet hash ->", tag[:32], "...")
+        # print("Master: packet before sending ->", packet[:5], "...")
+        # print("Master: packet hash ->", tag[:32], "...")
 
         self.send({"type": "packet", "iv": iv.hex(), "ct": ct.hex(), "tag": tag.hex()})
 
@@ -286,8 +282,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Master: fatal error -> {e}")
     finally:
-        if master.conn:
-            try:
-                master.conn.close()
-            except:
-                pass
+        master.netManager.close_connection()
