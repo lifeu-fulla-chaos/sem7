@@ -33,12 +33,20 @@ class NetworkManager:
             raise RuntimeError("No connection available to send data.")
 
     def receive_data(self):
-        if self.conn:
-            return self.conn.recv(1024).decode().strip()
-        elif self.socket:
-            return self.socket.recv(1024).decode().strip()
-        else:
-            raise RuntimeError("No connection available to receive data.")
+        buffer = ""
+        while True:
+            if self.conn:
+                chunk = self.conn.recv(4096).decode()
+            elif self.socket:
+                chunk = self.socket.recv(4096).decode()
+            else:
+                raise RuntimeError("No connection available to receive data.")
+            if not chunk:
+                return None
+            buffer += chunk
+            if "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                return line
 
     def close_connection(self):
         if self.conn:

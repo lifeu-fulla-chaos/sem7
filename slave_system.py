@@ -213,6 +213,7 @@ from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
+
 HOST, PORT = "127.0.0.1", 3000
 
 
@@ -226,8 +227,8 @@ class SlaveSystem:
         except Exception as e:
             print(f"Slave: cannot connect -> {e}")
             raise
-        self.buf = ""
         self.secret_idx = None
+        self.buff = ""
         self.traj = None
         self.ref_state = None
         self.steps = 10000
@@ -238,7 +239,6 @@ class SlaveSystem:
         # Wait for master key
         while True:
             msg = self.recv()
-            print(msg)
             if msg and msg.get("type") == "master_key":
                 encrypted_master = bytes.fromhex(msg["encrypted_master"])
                 self.master_key = decrypt_master_key(self.private_key, encrypted_master)
@@ -246,6 +246,7 @@ class SlaveSystem:
                     self.master_key
                 )
                 print("Slave: received and decrypted master key")
+                self.send({"ack": "decoded"})
                 break
 
     # ...existing code...
@@ -258,15 +259,13 @@ class SlaveSystem:
 
     def recv(self):
         try:
-            while "\n" not in self.buf:
-                chunk = self.netManager.receive_data()
-                if not chunk:
-                    return None
-                self.buf += chunk
-            line, self.buf = self.buf.split("\n", 1)
-            return json.loads(line)
+            chunk = self.netManager.receive_data()
+            if not chunk:
+                return None
+            return json.loads(chunk)
         except json.JSONDecodeError:
             print("Slave: got invalid JSON line, skipping")
+            print(chunk)
             return None
         except Exception as e:
             print(f"Slave: recv error -> {e}")
@@ -297,7 +296,6 @@ class SlaveSystem:
                     print(f"Slave: packet decrypt failed -> {e}")
                     continue
 
-                print("Slave: packet after decryption ->", packet[:5], "...")
                 print("Slave: decoded index =", self.secret_idx)
                 self.traj = self.sys.run_steps(10000)
                 self.ref_state = self.traj[self.secret_idx]

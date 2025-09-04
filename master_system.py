@@ -238,6 +238,11 @@ class MasterSystem:
                 )
                 print("Master: sent encrypted master key")
                 break
+        while True:
+            msg = self.recv()
+            if msg and msg.get("ack") == "decoded":
+                print("received ack")
+                break
 
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps)
@@ -245,9 +250,6 @@ class MasterSystem:
         iv, ct, tag = encrypt_packet(
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
-
-        # print("Master: packet before sending ->", packet[:5], "...")
-        # print("Master: packet hash ->", tag[:32], "...")
 
         self.send({"type": "packet", "iv": iv.hex(), "ct": ct.hex(), "tag": tag.hex()})
 
