@@ -1,4 +1,8 @@
 import socket
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 class NetworkManager:
@@ -19,10 +23,10 @@ class NetworkManager:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.host, self.port))
         self.socket.listen(1)
-        print(f"Server listening on {self.host}:{self.port}")
-        print("Waiting for a connection...")
+        logging.info(f"Server listening on {self.host}:{self.port}")
+        logging.info("Waiting for a connection...")
         self.conn, addr = self.socket.accept()  # Blocks until a client connects
-        print(f"Connection accepted from {addr}")
+        logging.info(f"Connection accepted from {addr}")
 
     def connect(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -70,6 +74,23 @@ class NetworkManager:
                 if "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)
                     return line
+
+    def send(self, obj):
+        try:
+            data = json.dumps(obj).encode() + b"\n"
+            self.send_data(data)
+        except Exception as e:
+            logging.error(f"send error -> {e}")
+
+    def recv(self):
+        try:
+            data = self.receive_data()
+            if not data:
+                return None
+            return json.loads(data)
+        except Exception as e:
+            logging.error(f"recv error -> {e}")
+            return None
 
     def close_connection(self):
         if self.conn:

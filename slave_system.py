@@ -1,213 +1,4 @@
-# import socket, json
-# import numpy as np
-# from lorenz_system import LorenzSystem
-# from Cryptodome.Cipher import AES
-# from Cryptodome.Util.Padding import pad, unpad
-
-# HOST, PORT = "127.0.0.1", 3000
-
-# class SlaveSystem:
-#     def __init__(self):
-#         self.sys = LorenzSystem()
-#         self.buf = ""
-#         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#         try:
-#             self.sock.connect((HOST, PORT))
-#             print("Slave: connected")
-#         except Exception as e:
-#             print(f"Slave: cannot connect -> {e}")
-#             raise
-#         self.secret_idx = None
-#         self.traj = None
-#         self.ref_state = None
-
-#     def send(self, obj):
-#         try:
-#             data = json.dumps(obj).encode() + b"\n"
-#             self.sock.sendall(data)
-#         except Exception as e:
-#             print(f"Slave: send error -> {e}")
-
-#     def recv(self):
-#         try:
-#             while "\n" not in self.buf:
-#                 chunk = self.sock.recv(4096)
-#                 if not chunk:
-#                     return None
-#                 self.buf += chunk.decode()
-#             line, self.buf = self.buf.split("\n", 1)
-#             return json.loads(line)
-#         except json.JSONDecodeError:
-#             print("Slave: got invalid JSON line, skipping")
-#             return None
-#         except Exception as e:
-#             print(f"Slave: recv error -> {e}")
-#             return None
-
-
-#     def run(self):
-#         # Step 1: receive packet
-#         while True:
-#             msg = self.recv()
-#             if not msg:
-#                 continue
-#             if msg.get("type") == "packet":
-#                 try:
-#                     iv = bytes.fromhex(msg["iv"])
-#                     ct = bytes.fromhex(msg["ct"])
-#                     key = bytes.fromhex(msg["key"])
-#                 except Exception as e:
-#                     print(f"Slave: bad packet fields -> {e}")
-#                     continue
-
-#                 try:
-#                     packet = LorenzSystem.aes_decrypt_packet(iv, ct, key)
-#                 except Exception as e:
-#                     print(f"Slave: AES decrypt failed -> {e}")
-#                     continue
-
-#                 print("Slave: packet after decryption ->", packet[:5], "...")
-#                 self.secret_idx = int(np.sum(packet[:, 3]))
-#                 print("Slave: decoded index =", self.secret_idx)
-
-#                 self.traj = self.sys.simulate_master([1, 1, 1], 10000)
-#                 self.ref_state = self.traj[self.secret_idx]
-#                 self.send({"ack": "decoded"})
-#                 break
-
-#         # Step 2: wait for restart
-#         while True:
-#             msg = self.recv()
-#             if msg and msg.get("type") == "restart":
-#                 print("Slave: restarted")
-#                 break
-
-#         # Step 3: sync + acks
-#         while True:
-#             msg = self.recv()
-#             if not msg:
-#                 continue
-#             if msg.get("type") == "sync":
-#                 if msg["step"] % 50 == 0:
-#                     self.send({"ack": "ok"})
-#             elif msg.get("type") == "message":
-#                 enc_hex = msg["enc"]
-#                 dec, mask = self.sys.xor_decrypt(enc_hex, self.ref_state)
-#                 print("Slave: mask =", mask[:len(dec)])
-#                 print("Slave: decrypted msg =", dec)
-#                 break
-
-
-# if __name__ == "__main__":
-#     try:
-
-#         SlaveSystem().run()
-#     except Exception as e:
-#         print(f"Slave: fatal error -> {e}")
-
-# slave_system.py
-# import socket, json
-# import numpy as np
-# from lorenz_system import LorenzSystem
-
-# HOST, PORT = "127.0.0.1", 3000
-
-# class SlaveSystem:
-#     def __init__(self):
-#         self.sys = LorenzSystem()
-#         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#         try:
-#             self.sock.connect((HOST, PORT))
-#             print("Slave: connected")
-#         except Exception as e:
-#             print(f"Slave: cannot connect -> {e}")
-#             raise
-#         self.buf = ""
-#         self.secret_idx = None
-#         self.traj = None
-#         self.ref_state = None
-
-#     def send(self, obj):
-#         try:
-#             data = json.dumps(obj).encode() + b"\n"
-#             self.sock.sendall(data)
-#         except Exception as e:
-#             print(f"Slave: send error -> {e}")
-
-#     def recv(self):
-#         try:
-#             while "\n" not in self.buf:
-#                 chunk = self.sock.recv(4096)
-#                 if not chunk:
-#                     return None
-#                 self.buf += chunk.decode()
-#             line, self.buf = self.buf.split("\n", 1)
-#             return json.loads(line)
-#         except json.JSONDecodeError:
-#             print("Slave: got invalid JSON line, skipping")
-#             return None
-#         except Exception as e:
-#             print(f"Slave: recv error -> {e}")
-#             return None
-
-#     def run(self):
-#         # Step 1: receive & decode packet
-#         while True:
-#             msg = self.recv()
-#             if not msg:
-#                 continue
-#             if msg.get("type") == "packet":
-#                 try:
-#                     iv = bytes.fromhex(msg["iv"])
-#                     ct = bytes.fromhex(msg["ct"])
-#                     key = bytes.fromhex(msg["key"])
-#                     packet = LorenzSystem.aes_decrypt_packet(iv, ct, key)
-#                 except Exception as e:
-#                     print(f"Slave: AES decrypt failed -> {e}")
-#                     continue
-
-#                 print("Slave: packet after decryption ->", packet[:5], "...")
-#                 self.secret_idx = int(np.sum(packet[:, 3]))
-#                 print("Slave: decoded index =", self.secret_idx)
-#                 self.traj = self.sys.simulate_master([1, 1, 1], 10000)
-#                 self.ref_state = self.traj[self.secret_idx]
-#                 self.send({"ack": "decoded"})
-#                 break
-
-#         # Step 2: wait for restart
-#         while True:
-#             msg = self.recv()
-#             if msg and msg.get("type") == "restart":
-#                 print("Slave: restart acknowledged")
-#                 break
-
-#         # Step 3: sync with ack every 50 steps
-#         y = np.array([5.0, 5.0, 5.0], dtype=float)
-#         while True:
-#             msg = self.recv()
-#             if not msg:
-#                 continue
-#             if msg.get("type") == "sync":
-#                 step = msg["step"]
-#                 x = np.array(msg["state"], dtype=float)
-#                 y, _ = self.sys.simulate_slave_step(y, x)
-#                 if step % 50 == 0:
-#                     self.send({"ack": "ok"})
-#             elif msg.get("type") == "message":
-#                 enc_hex = msg["enc"]
-#                 dec, mask = self.sys.xor_decrypt(enc_hex, self.ref_state)
-#                 print("Slave: mask =", mask[:len(dec)])
-#                 print("Slave: decrypted msg =", dec)
-#                 break
-
-# if __name__ == "__main__":
-#     try:
-#         SlaveSystem().run()
-#     except Exception as e:
-#         print(f"Slave: fatal error -> {e}")
-
-
-import json
+import logging
 import threading
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
@@ -218,6 +9,7 @@ from network import NetworkManager
 
 HOST, PORT = "127.0.0.1", 3000
 UDP_PORT, RECV_UDP = 4001, 4000
+logging.basicConfig(level=logging.INFO)
 
 
 class SlaveSystem:
@@ -227,9 +19,9 @@ class SlaveSystem:
         self.udpManager = NetworkManager(HOST, UDP_PORT, "udp", (HOST, RECV_UDP))
         try:
             self.tcpManager.connect()
-            print("Slave: connected")
+            logging.info("Slave: connected")
         except Exception as e:
-            print(f"Slave: cannot connect -> {e}")
+            logging.error(f"Slave: cannot connect -> {e}")
             raise
         self.secret_idx = None
         self.buff = ""
@@ -239,62 +31,40 @@ class SlaveSystem:
 
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
-        self.send(
-            {"type": "rsa_pubkey", "pubkey": self.public_key.decode()}, self.tcpManager
-        )
+        self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
         # Wait for master key
         while True:
-            msg = self.recv(self.tcpManager)
+            msg = self.tcpManager.recv()
             if msg and msg.get("type") == "master_key":
                 encrypted_master = bytes.fromhex(msg["encrypted_master"])
                 self.master_key = decrypt_master_key(self.private_key, encrypted_master)
                 self.aes_inner, self.aes_outer, self.hmac_key = derive_keys(
                     self.master_key
                 )
-                print("Slave: received and decrypted master key")
-                self.send({"ack": "decoded"}, self.tcpManager)
+                logging.info("Slave: received and decrypted master key")
+                self.tcpManager.send({"ack": "decoded"})
                 break
-
-    def send(self, obj, netManager):
-        try:
-            data = json.dumps(obj).encode() + b"\n"
-            netManager.send_data(data)
-        except Exception as e:
-            print(f"Slave: send error -> {e}")
-
-    def recv(self, netManager):
-        try:
-            chunk = netManager.receive_data()
-            if not chunk:
-                return None
-            return json.loads(chunk)
-        except json.JSONDecodeError:
-            print("Slave: got invalid JSON line, skipping")
-            return None
-        except Exception as e:
-            print(f"Slave: recv error -> {e}")
-            return None
 
     def run_system(self):
         while True:
-            msg = self.recv(self.tcpManager)
+            msg = self.tcpManager.recv()
             if msg and msg.get("type") == "sync":
                 self.sys.run_steps(self.steps)
-                self.send({"ack": "ok"}, self.tcpManager)
+                self.tcpManager.send({"ack": "ok"})
 
     def decrypt_message(self):
         while True:
-            msg = self.recv(self.udpManager)
+            msg = self.udpManager.recv()
             if msg and msg.get("type") == "message":
                 enc_hex = msg["enc"]
-                print(self.sys.state_history[-1])  # type: ignore
+                logging.info(f"{self.sys.state_history[-1]}")  # type: ignore
                 dec, _ = xor_decrypt(enc_hex, self.sys.state_history[-1])  # type: ignore
-                print("Slave: decrypted message =", dec)
-            
+                logging.info(f"Slave: decrypted message = {dec}")
+
     def run(self):
         # Step 1: receive & decode packet
         while True:
-            msg = self.recv(self.tcpManager)
+            msg = self.tcpManager.recv()
             if not msg:
                 continue
             if msg.get("type") == "packet":
@@ -313,24 +83,24 @@ class SlaveSystem:
                     # Now you can use 'parts' to reconstruct secret_idx
                     self.secret_idx = int(np.sum(parts))
                 except Exception as e:
-                    print(f"Slave: packet decrypt failed -> {e}")
+                    logging.error(f"Slave: packet decrypt failed -> {e}")
                     continue
 
-                print("Slave: decoded index =", self.secret_idx)
+                logging.info(f"Slave: decoded index = {self.secret_idx}")
                 self.traj = self.sys.run_steps(10000)
                 self.ref_state = self.traj[self.secret_idx]
-                self.send({"ack": "decoded"}, self.tcpManager)
+                self.tcpManager.send({"ack": "decoded"})
                 break
 
         # Step 2: wait for restart
         while True:
-            msg = self.recv(self.tcpManager)
+            msg = self.tcpManager.recv()
             if msg and msg.get("type") == "restart":
                 self.sys = LorenzSystem(
                     LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
                     initial_state=self.ref_state,
                 )
-                print("Slave: restart acknowledged")
+                logging.info("Slave: restart acknowledged")
                 break
 
 
@@ -345,4 +115,4 @@ if __name__ == "__main__":
         slave_system_thread.join()
         decrypt_thread.join()
     except Exception as e:
-        print(f"Slave: fatal error -> {e}")
+        logging.error(f"Slave: fatal error -> {e}")
