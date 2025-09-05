@@ -189,7 +189,7 @@ from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 
 HOST, PORT = "127.0.0.1", 3000
-PORT_UDP = 4000
+PORT_UDP, RECV_UDP = 4000, 4001
 
 
 class MasterSystem:
@@ -197,25 +197,26 @@ class MasterSystem:
         self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
-        self.netManager = NetworkManager(HOST, PORT, "tcp")
+        self.tcpManager = NetworkManager(HOST, PORT, "tcp")
+        self.udpManager = NetworkManager(HOST, PORT_UDP, "udp", (HOST, RECV_UDP))
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None
         self.hmac_key = None
 
     def start(self):
-        self.netManager.start_server()
+        self.tcpManager.start_server()
 
-    def send(self, obj):
+    def send(self, obj, netManager):
         try:
             data = json.dumps(obj).encode() + b"\n"
-            self.netManager.send_data(data)
+            netManager.send_data(data)
         except Exception as e:
             print(f"Master: send error -> {e}")
 
-    def recv(self):
+    def recv(self, netManager):
         try:
-            data = self.netManager.receive_data()
+            data = netManager.receive_data()
             if not data:
                 return None
             return json.loads(data)
@@ -226,13 +227,14 @@ class MasterSystem:
     def run(self):
         # Step 0: RSA key exchange
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if msg and msg.get("type") == "rsa_pubkey":
                 pubkey = msg["pubkey"].encode()
                 self.master_key = os.urandom(32)
                 encrypted_master = encrypt_master_key(pubkey, self.master_key)
                 self.send(
-                    {"type": "master_key", "encrypted_master": encrypted_master.hex()}
+                    {"type": "master_key", "encrypted_master": encrypted_master.hex()},
+                    self.tcpManager,
                 )
                 self.aes_inner, self.aes_outer, self.hmac_key = derive_keys(
                     self.master_key
@@ -240,7 +242,7 @@ class MasterSystem:
                 print("Master: sent encrypted master key")
                 break
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if msg and msg.get("ack") == "decoded":
                 print("received ack")
                 break
@@ -252,21 +254,23 @@ class MasterSystem:
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
 
-        self.send({"type": "packet", "iv": iv.hex(), "ct": ct.hex(), "tag": tag.hex()})
+        self.send(
+            {"type": "packet", "iv": iv.hex(), "ct": ct.hex(), "tag": tag.hex()},
+            self.tcpManager,
+        )
 
         # Step 3: wait for ack
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if msg and msg.get("ack") == "decoded":
                 print("Master: slave decoded index, restarting...")
                 break
 
         # Step 4: restart sync
-        self.send({"type": "restart"})
+        self.send({"type": "restart"}, self.tcpManager)
         print("Master: restarting trajectory sync...")
         self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx])
         self.sys.run_steps(self.steps)
-        self.netManager = NetworkManager(HOST, PORT, "udp", (HOST, PORT_UDP))
         # Step 5: send encrypted message
         msg = "Hello World!"
         print(self.sys.state_history[-1])  # type: ignore
@@ -274,7 +278,7 @@ class MasterSystem:
         print("Master: original msg =", msg)
         print("Master: mask =", mask[: len(msg)])
         print("Master: encrypted msg =", enc_hex)
-        self.send({"type": "message", "enc": enc_hex})
+        self.send({"type": "message", "enc": enc_hex}, self.udpManager)
 
 
 if __name__ == "__main__":
@@ -285,4 +289,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Master: fatal error -> {e}")
     finally:
-        master.netManager.close_connection()
+        master.tcpManager.close_connection()
+        master.udpManager.close_connection()

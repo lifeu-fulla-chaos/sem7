@@ -211,18 +211,21 @@ import socket, json
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
+from master_system import RECV_UDP
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 
 HOST, PORT = "127.0.0.1", 3000
-UDP_PORT = 4000
+UDP_PORT, RECV_UDP = 4001, 4000
+
 
 class SlaveSystem:
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
-        self.netManager = NetworkManager(HOST, PORT, "tcp")
+        self.tcpManager = NetworkManager(HOST, PORT, "tcp")
+        self.udpManager = NetworkManager(HOST, UDP_PORT, "udp", (HOST, RECV_UDP))
         try:
-            self.netManager.connect()
+            self.tcpManager.connect()
             print("Slave: connected")
         except Exception as e:
             print(f"Slave: cannot connect -> {e}")
@@ -235,10 +238,12 @@ class SlaveSystem:
 
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
-        self.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
+        self.send(
+            {"type": "rsa_pubkey", "pubkey": self.public_key.decode()}, self.tcpManager
+        )
         # Wait for master key
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if msg and msg.get("type") == "master_key":
                 encrypted_master = bytes.fromhex(msg["encrypted_master"])
                 self.master_key = decrypt_master_key(self.private_key, encrypted_master)
@@ -246,20 +251,20 @@ class SlaveSystem:
                     self.master_key
                 )
                 print("Slave: received and decrypted master key")
-                self.send({"ack": "decoded"})
+                self.send({"ack": "decoded"}, self.tcpManager)
                 break
 
     # ...existing code...
-    def send(self, obj):
+    def send(self, obj, netManager):
         try:
             data = json.dumps(obj).encode() + b"\n"
-            self.netManager.send_data(data)
+            netManager.send_data(data)
         except Exception as e:
             print(f"Slave: send error -> {e}")
 
-    def recv(self):
+    def recv(self, netManager):
         try:
-            chunk = self.netManager.receive_data()
+            chunk = netManager.receive_data()
             if not chunk:
                 return None
             return json.loads(chunk)
@@ -273,7 +278,7 @@ class SlaveSystem:
     def run(self):
         # Step 1: receive & decode packet
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if not msg:
                 continue
             if msg.get("type") == "packet":
@@ -298,12 +303,12 @@ class SlaveSystem:
                 print("Slave: decoded index =", self.secret_idx)
                 self.traj = self.sys.run_steps(10000)
                 self.ref_state = self.traj[self.secret_idx]
-                self.send({"ack": "decoded"})
+                self.send({"ack": "decoded"}, self.tcpManager)
                 break
 
         # Step 2: wait for restart
         while True:
-            msg = self.recv()
+            msg = self.recv(self.tcpManager)
             if msg and msg.get("type") == "restart":
                 self.sys = LorenzSystem(
                     LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
@@ -313,9 +318,8 @@ class SlaveSystem:
                 break
 
         self.sys.run_steps(self.steps)
-        self.netManager = NetworkManager(HOST, UDP_PORT, "udp", (HOST, PORT))
         while True:
-            msg = self.recv()
+            msg = self.recv(self.udpManager)
             if msg and msg.get("type") == "message":
                 enc_hex = msg["enc"]
                 print(self.sys.state_history[-1])  # type: ignore
