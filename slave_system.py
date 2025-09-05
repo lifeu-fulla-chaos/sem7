@@ -215,12 +215,12 @@ from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 
 HOST, PORT = "127.0.0.1", 3000
-
+UDP_PORT = 4000
 
 class SlaveSystem:
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
-        self.netManager = NetworkManager(HOST, PORT)
+        self.netManager = NetworkManager(HOST, PORT, "tcp")
         try:
             self.netManager.connect()
             print("Slave: connected")
@@ -265,7 +265,6 @@ class SlaveSystem:
             return json.loads(chunk)
         except json.JSONDecodeError:
             print("Slave: got invalid JSON line, skipping")
-            print(chunk)
             return None
         except Exception as e:
             print(f"Slave: recv error -> {e}")
@@ -314,6 +313,7 @@ class SlaveSystem:
                 break
 
         self.sys.run_steps(self.steps)
+        self.netManager = NetworkManager(HOST, UDP_PORT, "udp", (HOST, PORT))
         while True:
             msg = self.recv()
             if msg and msg.get("type") == "message":

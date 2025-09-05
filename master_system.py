@@ -189,6 +189,7 @@ from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 
 HOST, PORT = "127.0.0.1", 3000
+PORT_UDP = 4000
 
 
 class MasterSystem:
@@ -196,7 +197,7 @@ class MasterSystem:
         self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
-        self.netManager = NetworkManager(HOST, PORT)
+        self.netManager = NetworkManager(HOST, PORT, "tcp")
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None
@@ -265,7 +266,7 @@ class MasterSystem:
         print("Master: restarting trajectory sync...")
         self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx])
         self.sys.run_steps(self.steps)
-
+        self.netManager = NetworkManager(HOST, PORT, "udp", (HOST, PORT_UDP))
         # Step 5: send encrypted message
         msg = "Hello World!"
         print(self.sys.state_history[-1])  # type: ignore
