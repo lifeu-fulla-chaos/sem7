@@ -181,12 +181,14 @@
 #             except: pass
 
 import os
-import socket, json
-import numpy as np  # type: ignore
+import json
+import threading
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
 from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
+import random
+import time
 
 HOST, PORT = "127.0.0.1", 3000
 PORT_UDP, RECV_UDP = 4000, 4001
@@ -223,6 +225,25 @@ class MasterSystem:
         except Exception as e:
             print(f"Master: recv error -> {e}")
             return None
+
+    def run_system(self):
+        while True:
+            self.sys.run_steps(self.steps)
+            self.send({"type": "sync"}, self.tcpManager)
+            msg = self.recv(self.tcpManager)
+            if msg and msg.get("ack") == "ok":
+                print("Master: slave in sync")
+                time.sleep(random.uniform(0.5, 3.0))  # simulate variable delay
+
+    def user_input(self):
+        while True:
+            msg = input("Enter message to send: ")
+            print(self.sys.state_history[-1])  # type: ignore
+            enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1])  # type: ignore
+            print("Master: original msg =", msg)
+            print("Master: mask =", mask[: len(msg)])
+            print("Master: encrypted msg =", enc_hex)
+            self.send({"type": "message", "enc": enc_hex}, self.udpManager)
 
     def run(self):
         # Step 0: RSA key exchange
@@ -270,15 +291,6 @@ class MasterSystem:
         self.send({"type": "restart"}, self.tcpManager)
         print("Master: restarting trajectory sync...")
         self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx])
-        self.sys.run_steps(self.steps)
-        # Step 5: send encrypted message
-        msg = "Hello World!"
-        print(self.sys.state_history[-1])  # type: ignore
-        enc_hex, mask = xor_encrypt(msg, self.sys.state_history[-1])  # type: ignore
-        print("Master: original msg =", msg)
-        print("Master: mask =", mask[: len(msg)])
-        print("Master: encrypted msg =", enc_hex)
-        self.send({"type": "message", "enc": enc_hex}, self.udpManager)
 
 
 if __name__ == "__main__":
@@ -286,6 +298,12 @@ if __name__ == "__main__":
     try:
         master.start()
         master.run()
+        system_thread = threading.Thread(target=master.run_system, daemon=True)
+        input_thread = threading.Thread(target=master.user_input, daemon=True)
+        system_thread.start()
+        input_thread.start()
+        system_thread.join()
+        input_thread.join()
     except Exception as e:
         print(f"Master: fatal error -> {e}")
     finally:

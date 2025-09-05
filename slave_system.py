@@ -207,7 +207,8 @@
 #         print(f"Slave: fatal error -> {e}")
 
 
-import socket, json
+import json
+import threading
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
@@ -254,7 +255,6 @@ class SlaveSystem:
                 self.send({"ack": "decoded"}, self.tcpManager)
                 break
 
-    # ...existing code...
     def send(self, obj, netManager):
         try:
             data = json.dumps(obj).encode() + b"\n"
@@ -275,6 +275,22 @@ class SlaveSystem:
             print(f"Slave: recv error -> {e}")
             return None
 
+    def run_system(self):
+        while True:
+            msg = self.recv(self.tcpManager)
+            if msg and msg.get("type") == "sync":
+                self.sys.run_steps(self.steps)
+                self.send({"ack": "ok"}, self.tcpManager)
+
+    def decrypt_message(self):
+        while True:
+            msg = self.recv(self.udpManager)
+            if msg and msg.get("type") == "message":
+                enc_hex = msg["enc"]
+                print(self.sys.state_history[-1])  # type: ignore
+                dec, _ = xor_decrypt(enc_hex, self.sys.state_history[-1])  # type: ignore
+                print("Slave: decrypted message =", dec)
+            
     def run(self):
         # Step 1: receive & decode packet
         while True:
@@ -317,19 +333,16 @@ class SlaveSystem:
                 print("Slave: restart acknowledged")
                 break
 
-        self.sys.run_steps(self.steps)
-        while True:
-            msg = self.recv(self.udpManager)
-            if msg and msg.get("type") == "message":
-                enc_hex = msg["enc"]
-                print(self.sys.state_history[-1])  # type: ignore
-                dec, _ = xor_decrypt(enc_hex, self.sys.state_history[-1])  # type: ignore
-                print("Slave: decrypted message =", dec)
-                break
-
 
 if __name__ == "__main__":
     try:
-        SlaveSystem().run()
+        slave = SlaveSystem()
+        slave.run()
+        slave_system_thread = threading.Thread(target=slave.run_system)
+        decrypt_thread = threading.Thread(target=slave.decrypt_message)
+        slave_system_thread.start()
+        decrypt_thread.start()
+        slave_system_thread.join()
+        decrypt_thread.join()
     except Exception as e:
         print(f"Slave: fatal error -> {e}")
