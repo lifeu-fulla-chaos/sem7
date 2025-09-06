@@ -47,6 +47,20 @@ class MasterSystem:
             logging.info(f"Master: encrypted msg = {enc_hex}")
             self.udpManager.send({"type": "message", "enc": enc_hex})
 
+    def send_audio(self, audio_bytes: bytes):
+        chunk_size = 4096
+        chunks = [
+            audio_bytes[i : i + chunk_size]
+            for i in range(0, len(audio_bytes), chunk_size)
+        ]
+
+        chunks = [xor_encrypt(chunk, self.sys.state_history[-1])[0] for chunk in chunks] # type: ignore
+        file_len = len(audio_bytes)
+        self.udpManager.send_data(str(file_len).encode() + b"\n")
+        for i, chunk in enumerate(chunks):
+            header = f"{i:06d}".encode()  
+            self.udpManager.send_data(header + chunk)
+
     def run(self):
         # Step 0: RSA key exchange
         while True:
@@ -98,12 +112,16 @@ if __name__ == "__main__":
     try:
         master.start()
         master.run()
+
         system_thread = threading.Thread(target=master.run_system, daemon=True)
-        input_thread = threading.Thread(target=master.user_input, daemon=True)
+        # input_thread = threading.Thread(target=master.user_input, daemon=True)
         system_thread.start()
-        input_thread.start()
+        # input_thread.start()
         system_thread.join()
-        input_thread.join()
+        # input_thread.join()
+        with open("/home/shusrith/downloads/test.mp3", "rb") as f:
+            audio_bytes = f.read()
+            master.send_audio(audio_bytes)
     except Exception as e:
         logging.error(f"Master: fatal error -> {e}")
     finally:

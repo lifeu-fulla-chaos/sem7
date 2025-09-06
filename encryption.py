@@ -110,8 +110,8 @@ def derive_mask(state: np.ndarray, length: int) -> bytes:
     return (h * ((length // len(h)) + 1))[:length]
 
 
-def xor_encrypt(msg: str, state: np.ndarray):
-    msg_b = msg.encode()
+def xor_encrypt(msg: str | bytes, state: np.ndarray) -> tuple[str, bytes]:
+    msg_b = msg.encode() if isinstance(msg, str) else msg
     mask = derive_mask(np.array(state, dtype=float), len(msg_b))
     enc = bytes([b ^ m for b, m in zip(msg_b, mask)])
     return enc.hex(), mask
