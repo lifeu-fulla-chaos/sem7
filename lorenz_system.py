@@ -24,7 +24,7 @@ class LorenzSystem:
         dz = x * y - self.params.beta * z
         return [dx, dy, dz]
 
-    def run_steps(self, steps: int):
+    def run_steps(self, steps: int, return_traj: bool = False):
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 
@@ -40,7 +40,9 @@ class LorenzSystem:
         self.state_history = solution.y.T
         self.initial_state = self.state_history[-1]
         self.t += (steps * self.dt)
-        return self.state_history
+        if return_traj:
+            return self.state_history
+        return None
 
     # -------- Slave dyn + backstepping --------
     def backstepping_control(self, x_master: np.ndarray, y_slave: np.ndarray, k: float = 5.0):

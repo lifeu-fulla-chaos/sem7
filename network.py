@@ -66,14 +66,8 @@ class NetworkManager:
                     return line
         elif self.mode == "udp":
             while True:
-                data = self.socket.recv(4096)  # type: ignore
-                if not data:
-                    return None
-                chunk = data.decode()
-                buffer += chunk
-                if "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    return line
+                data = self.socket.recv(16384)  # type: ignore
+                return data
 
     def send(self, obj):
         try:

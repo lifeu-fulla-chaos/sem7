@@ -7,6 +7,8 @@ from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 import random
 import time
+import sounddevice as sd  # type: ignore
+import numpy as np  # type: ignore
 
 HOST, PORT = "127.0.0.1", 3000
 PORT_UDP, RECV_UDP = 4000, 4001
@@ -48,18 +50,53 @@ class MasterSystem:
             self.udpManager.send({"type": "message", "enc": enc_hex})
 
     def send_audio(self, audio_bytes: bytes):
-        chunk_size = 4096
+        chunk_size = 16378
         chunks = [
             audio_bytes[i : i + chunk_size]
             for i in range(0, len(audio_bytes), chunk_size)
         ]
 
-        chunks = [xor_encrypt(chunk, self.sys.state_history[-1])[0] for chunk in chunks] # type: ignore
+        chunks = [xor_encrypt(chunk, self.sys.state_history[-1])[0] for chunk in chunks]  # type: ignore
         file_len = len(audio_bytes)
         self.udpManager.send_data(str(file_len).encode() + b"\n")
         for i, chunk in enumerate(chunks):
-            header = f"{i:06d}".encode()  
-            self.udpManager.send_data(header + chunk)
+            header = f"{i:06d}".encode()
+            print(f"Master: sending chunk {i+1}/{len(chunks)}")
+            self.udpManager.send_data(header + bytes.fromhex(chunk))
+            time.sleep(0.1)  # simulate network delay
+        logging.info("Master: finished sending audio")
+
+    def send_audio_from_mic_realtime(
+        self, duration=5, samplerate=44100, channels=1, chunk_size=16384
+    ):
+        print("Streaming mic audio for", duration, "seconds...")
+        start_time = time.time()
+        stream = sd.InputStream(
+            samplerate=samplerate,
+            channels=channels,
+            dtype="int16",
+            blocksize=chunk_size,
+        )
+        stream.start()
+
+        chunk_index = 0
+        while time.time() - start_time < duration:
+            audio, _ = stream.read(chunk_size)
+            audio_bytes = audio.tobytes()
+
+            # Encrypt
+            enc_chunk = xor_encrypt(audio_bytes, self.sys.state_history[-1])[0]  # type: ignore
+            header = f"{chunk_index:06d}".encode()
+
+            # Send
+            print(f"Master: sending chunk {chunk_index}")
+            self.udpManager.send_data(header + bytes.fromhex(enc_chunk))
+            chunk_index += 1
+
+        stream.stop()
+        stream.close()
+        self.udpManager.send_data(b"EOF")
+        print("Master: finished streaming audio")
 
     def run(self):
         # Step 0: RSA key exchange
@@ -84,8 +121,8 @@ class MasterSystem:
                 break
 
         # Step 1: compute 10k trajectory
-        traj = self.sys.run_steps(self.steps)
-        packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)
+        traj = self.sys.run_steps(self.steps, True)
+        packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)  # type: ignore
         iv, ct, tag = encrypt_packet(
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
@@ -104,7 +141,8 @@ class MasterSystem:
         # Step 4: restart sync
         self.tcpManager.send({"type": "restart"})
         logging.info("Master: restarting trajectory sync...")
-        self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx])
+        self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx]) # type: ignore
+        self.sys.run_steps(self.steps)
 
 
 if __name__ == "__main__":
@@ -112,16 +150,17 @@ if __name__ == "__main__":
     try:
         master.start()
         master.run()
-
         system_thread = threading.Thread(target=master.run_system, daemon=True)
         # input_thread = threading.Thread(target=master.user_input, daemon=True)
+        audio_thread = threading.Thread(
+            target=master.send_audio_from_mic_realtime, daemon=True
+        )
         system_thread.start()
+        audio_thread.start()
         # input_thread.start()
+        audio_thread.join()
         system_thread.join()
         # input_thread.join()
-        with open("/home/shusrith/downloads/test.mp3", "rb") as f:
-            audio_bytes = f.read()
-            master.send_audio(audio_bytes)
     except Exception as e:
         logging.error(f"Master: fatal error -> {e}")
     finally:

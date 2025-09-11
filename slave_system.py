@@ -87,8 +87,8 @@ class SlaveSystem:
                     continue
 
                 logging.info(f"Slave: decoded index = {self.secret_idx}")
-                self.traj = self.sys.run_steps(10000)
-                self.ref_state = self.traj[self.secret_idx]
+                self.traj = self.sys.run_steps(self.steps, True)
+                self.ref_state = self.traj[self.secret_idx] # type: ignore
                 self.tcpManager.send({"ack": "decoded"})
                 break
 
@@ -100,35 +100,70 @@ class SlaveSystem:
                     LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
                     initial_state=self.ref_state,
                 )
+                self.sys.run_steps(self.steps)
                 logging.info("Slave: restart acknowledged")
                 break
     
-    def receive_audio(self, output_path="received_audio.wav"):
+    def receive_audio(self, output_path="received_audio.mp3"):
+        # Receive the file length as a line of text
         file_len_data = self.udpManager.receive_data()
         if file_len_data is None:
             print("No file length received.")
             return
-        file_len = int(file_len_data.strip())
+        if isinstance(file_len_data, bytes):
+            file_len_data = file_len_data.decode()
+        file_len = int(file_len_data.strip()) # type: ignore
         print(f"Expecting {file_len} bytes.")
-
+        chunk_size = 16384
+        expected_num_chunks = (file_len + chunk_size - 1) // chunk_size
+        print(f"Expecting {expected_num_chunks} chunks.")
         received = {}
         total_received = 0
         while total_received < file_len:
             data = self.udpManager.receive_data()
             if data is None:
                 break
-            data_bytes = data.encode() if isinstance(data, str) else data
-            header = data_bytes[:6]
-            chunk = data_bytes[6:]
-            seq = int(header.decode())
+            # data is bytes, first 6 bytes are header (sequence number), rest is chunk
+            header = data[:6]
+            chunk = data[6:]
+            chunk = xor_decrypt(chunk, self.sys.state_history[-1])[0]  # type: ignore
+            seq = int(header.decode())  # type: ignore
             received[seq] = chunk
             total_received += len(chunk)
             print(f"Received chunk {seq}, size {len(chunk)}")
-
+            print(f"Total received: {total_received}/{file_len} bytes")
+            if len(received) == expected_num_chunks:
+                break
+        # Reassemble in order
         audio_bytes = b''.join(received[i] for i in sorted(received))
         with open(output_path, "wb") as f:
             f.write(audio_bytes)
         print(f"Audio file written to {output_path}")
+
+    def receive_audio_realtime(self, output_path="received_audio.raw"):
+        print("Receiving audio stream...")
+        received = {}
+        while True:
+            data = self.udpManager.receive_data()
+            if data is None:
+                continue
+            if data == b"EOF":
+                break
+
+            header = data[:6]
+            chunk = data[6:]
+
+            # Decrypt
+            dec_chunk = xor_decrypt(chunk, self.sys.state_history[-1])[0]  # type: ignore
+            seq = int(header.decode()) # type: ignore
+            received[seq] = dec_chunk
+            print(f"Received chunk {seq}, size {len(dec_chunk)}")
+
+        # Reassemble
+        audio_bytes = b''.join(received[i] for i in sorted(received))
+        with open(output_path, "wb") as f:
+            f.write(audio_bytes)
+        print(f"Audio stream written to {output_path}")
 
 if __name__ == "__main__":
     try:
@@ -136,10 +171,12 @@ if __name__ == "__main__":
         slave.run()
         slave_system_thread = threading.Thread(target=slave.run_system)
         # decrypt_thread = threading.Thread(target=slave.decrypt_message)
+        audio_thread = threading.Thread(target=slave.receive_audio_realtime)
+        audio_thread.start()
         slave_system_thread.start()
         # decrypt_thread.start()
         slave_system_thread.join()
         # decrypt_thread.join()
-        slave.receive_audio()
+        audio_thread.join()
     except Exception as e:
         logging.error(f"Slave: fatal error -> {e}")

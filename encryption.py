@@ -117,8 +117,14 @@ def xor_encrypt(msg: str | bytes, state: np.ndarray) -> tuple[str, bytes]:
     return enc.hex(), mask
 
 
-def xor_decrypt(enc_hex: str, state: np.ndarray):
-    enc_b = bytes.fromhex(enc_hex)
+def xor_decrypt(enc_hex: bytes | str, state: np.ndarray):
+    if isinstance(enc_hex, str):
+        enc_b = bytes.fromhex(enc_hex)
+    else:
+        enc_b = enc_hex
     mask = derive_mask(np.array(state, dtype=float), len(enc_b))
     dec = bytes([b ^ m for b, m in zip(enc_b, mask)])
-    return dec.decode(errors="strict"), mask
+    try:
+        return dec.decode(errors="strict"), mask
+    except UnicodeDecodeError:
+        return dec, mask
