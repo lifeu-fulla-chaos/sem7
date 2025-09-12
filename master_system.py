@@ -34,7 +34,7 @@ class MasterSystem:
     def run_system(self):
         while True:
             self.sys.run_steps(self.steps)
-            self.tcpManager.send({"type": "sync"})
+            self.tcpManager.send({"type": "sync", "state": self.sys.state_history[-1].tolist()})  # type: ignore }
             msg = self.tcpManager.recv()
             if msg and msg.get("ack") == "ok":
                 logging.info("Master: slave in sync")
@@ -86,11 +86,11 @@ class MasterSystem:
             audio_bytes = audio.tobytes()
 
             # Encrypt
-            enc_chunk = xor_encrypt(audio_bytes, self.sys.state_history[-1])[0]  # type: ignore
+            enc_chunk, mask = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
             header = f"{chunk_index:06d}".encode()
 
             # Send
-            print(f"Master: sending chunk {chunk_index}")
+            print(f"Master: sending chunk {chunk_index} with mask {mask}")
             self.udpManager.send_data(header + bytes.fromhex(enc_chunk))
             chunk_index += 1
 
@@ -124,6 +124,7 @@ class MasterSystem:
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps, True)
         packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)  # type: ignore
+        print(packet[secret_idx][:3])
         iv, ct, tag = encrypt_packet(
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
@@ -153,13 +154,13 @@ if __name__ == "__main__":
         master.run()
         system_thread = threading.Thread(target=master.run_system, daemon=True)
         # input_thread = threading.Thread(target=master.user_input, daemon=True)
-        audio_thread = threading.Thread(
-            target=master.send_audio_from_mic_realtime, daemon=True
-        )
+        # audio_thread = threading.Thread(
+        #     target=master.send_audio_from_mic_realtime, daemon=True
+        # )
         system_thread.start()
-        audio_thread.start()
+        # audio_thread.start()
         # input_thread.start()
-        audio_thread.join()
+        # audio_thread.join()
         system_thread.join()
         # input_thread.join()
     except Exception as e:
