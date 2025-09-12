@@ -127,4 +127,5 @@ def xor_decrypt(enc_hex: bytes | str, state: np.ndarray):
     try:
         return dec.decode(errors="strict"), mask
     except UnicodeDecodeError:
+        print("unicode error")
         return dec, mask
