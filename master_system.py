@@ -10,7 +10,8 @@ import time
 import sounddevice as sd  # type: ignore
 import numpy as np  # type: ignore
 
-HOST, PORT = "127.0.0.1", 3000
+HOST, PORT = "0.0.0.0", 3000
+RECV_HOST = "192.168.0.117"
 PORT_UDP, RECV_UDP = 4000, 4001
 logging.basicConfig(level=logging.INFO)
 
@@ -21,7 +22,7 @@ class MasterSystem:
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
         self.tcpManager = NetworkManager(HOST, PORT, "tcp")
-        self.udpManager = NetworkManager(HOST, PORT_UDP, "udp", (HOST, RECV_UDP))
+        self.udpManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, RECV_UDP))
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None
@@ -67,7 +68,7 @@ class MasterSystem:
         logging.info("Master: finished sending audio")
 
     def send_audio_from_mic_realtime(
-        self, duration=5, samplerate=44100, channels=1, chunk_size=16384
+        self, duration=10, samplerate=44100, channels=1, chunk_size=16384
     ):
         print("Streaming mic audio for", duration, "seconds...")
         start_time = time.time()
