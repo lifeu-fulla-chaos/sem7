@@ -11,8 +11,6 @@ from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.117"
-PORT_UDP = 4000
-SEND_UDP = 4001
 logging.basicConfig(level=logging.INFO)
 
 
@@ -27,7 +25,7 @@ class MasterSystem(AudioHandler):
         self.aes_inner = None
         self.aes_outer = None
         self.hmac_key = None
-        super().__init__(self.sys, RECV_HOST, PORT_UDP, SEND_UDP)
+        super().__init__(self.sys, RECV_HOST)
 
     def start(self):
         self.tcpManager.start_server()
@@ -102,7 +100,7 @@ if __name__ == "__main__":
         )
         system_thread.start()
         audio_thread.start()
-        audio_thread1.start()
+        audio_thread1.start()  
         audio_thread.join()
         system_thread.join()
         audio_thread1.join()

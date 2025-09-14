@@ -5,16 +5,17 @@ import numpy as np  # type: ignore
 from network import NetworkManager
 
 HOST = "0.0.0.0"
-
+PORT_UDP = 4000
+SEND_UDP = 4001
 
 
 class AudioHandler:
-    def __init__(self, sys, recv_host, port_udp, send_udp):
+    def __init__(self, sys, recv_host):
         self.sys = sys
         self.udpSendManager = NetworkManager(
-            HOST, port_udp, "udp", (recv_host, send_udp)
+            HOST, PORT_UDP, "udp", (recv_host, SEND_UDP)
         )
-        self.udpRecvManager = NetworkManager(HOST, send_udp, "udp", None)
+        self.udpRecvManager = NetworkManager(HOST, SEND_UDP, "udp", None)
 
     def send_audio_from_mic_realtime(
         self, duration=10, samplerate=44100, channels=1, chunk_size=8192

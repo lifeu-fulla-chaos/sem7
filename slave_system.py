@@ -10,8 +10,6 @@ import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.102"
-PORT_UDP = 4000
-SEND_UDP = 4001
 logging.basicConfig(level=logging.INFO)
 
 
@@ -33,7 +31,7 @@ class SlaveSystem(AudioHandler):
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
         self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
-        super().__init__(self.sys, RECV_HOST, SEND_UDP, PORT_UDP)
+        super().__init__(self.sys, RECV_HOST)
         # Wait for master key
         while True:
             msg = self.tcpManager.recv()
