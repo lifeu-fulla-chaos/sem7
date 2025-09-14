@@ -7,8 +7,6 @@ from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 import random
 import time
-import sounddevice as sd  # type: ignore
-import numpy as np  # type: ignore
 from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000

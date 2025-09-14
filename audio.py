@@ -33,7 +33,7 @@ class AudioHandler:
             iteration = f"{self.sys.iteration}".encode()
             # Send
             print(
-                f"Master: sending chunk {chunk_index} with iteration {self.sys.iteration}"
+                f"Master: sending chunk {chunk_index}. size {len(audio_bytes)} with iteration {self.sys.iteration}"
             )
             self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
             chunk_index += 1
