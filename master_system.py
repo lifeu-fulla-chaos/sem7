@@ -86,7 +86,6 @@ class MasterSystem:
             audio_bytes = audio.tobytes()
 
             # Encrypt
-            print(self.sys.state_history[-1])
             enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
             header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()

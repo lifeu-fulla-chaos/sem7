@@ -7,6 +7,7 @@ from master_system import RECV_UDP
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 import time
+import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "0.0.0.0"
@@ -140,34 +141,27 @@ class SlaveSystem:
             f.write(audio_bytes)
         print(f"Audio file written to {output_path}")
 
-    def receive_audio_realtime(self, output_path="received_audio.raw"):
-        buffer = []
+    def receive_audio_realtime(self, samplerate=44100, channels=1):
         print("Receiving audio stream...")
-        received = {}
-        while True:
-            data = self.udpManager.receive_data()
-            if data is None:
-                continue
-            if data == b"EOF":
-                break
+        with sd.OutputStream(samplerate=samplerate, channels=channels, dtype="int16") as stream:
+            while True:
+                data = self.udpManager.receive_data()
+                if data is None:
+                    continue
+                if data == b"EOF":
+                    break
 
-            header = data[:6]
-            iteration = int(data[6:7].decode())  # type: ignore
-            chunk = data[7:]
-            while iteration != self.sys.iteration:
-                time.sleep(0.01)
-            # Decrypt
-            print(self.sys.state_history[-1])
-            dec_chunk, _ = xor_decrypt(chunk, self.sys.state_history[-1])  # type: ignore
-            seq = int(header.decode())  # type: ignore
-            received[seq] = dec_chunk
-            print(f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}")
-
-        # Reassemble
-        audio_bytes = b"".join(received[i] for i in sorted(received))
-        with open(output_path, "wb") as f:
-            f.write(audio_bytes)
-        print(f"Audio stream written to {output_path}")
+                header = data[:6]
+                iteration = int(data[6:7].decode())  # type: ignore
+                chunk = data[7:]
+                while iteration != self.sys.iteration:
+                    time.sleep(0.01)
+                # Decrypt
+                dec_chunk, _ = xor_decrypt(chunk, self.sys.state_history[-1])  # type: ignore
+                seq = int(header.decode())  # type: ignore
+                print(f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}")
+                audio_array = np.frombuffer(dec_chunk, dtype=np.int16) # type: ignore
+                stream.write(audio_array)
 
 
 if __name__ == "__main__":
