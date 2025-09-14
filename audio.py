@@ -4,9 +4,10 @@ from encryption import xor_encrypt, xor_decrypt
 import numpy as np  # type: ignore
 
 class AudioHandler:
-    def __init__(self, sys, udpManager):
+    def __init__(self, sys, udpSendManager, udpRecvManager):
         self.sys = sys
-        self.udpManager = udpManager
+        self.udpSendManager = udpSendManager
+        self.udpRecvManager = udpRecvManager
 
     def send_audio_from_mic_realtime(
         self, duration=10, samplerate=44100, channels=1, chunk_size=16384
@@ -34,12 +35,12 @@ class AudioHandler:
             print(
                 f"Master: sending chunk {chunk_index} with iteration {self.sys.iteration}"
             )
-            self.udpManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
+            self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
             chunk_index += 1
 
         stream.stop()
         stream.close()
-        self.udpManager.send_data(b"EOF")
+        self.udpSendManager.send_data(b"EOF")
         print("Master: finished streaming audio")
 
     def receive_audio_realtime(self, samplerate=44100, channels=1):
@@ -48,7 +49,7 @@ class AudioHandler:
             samplerate=samplerate, channels=channels, dtype="int16"
         ) as stream:
             while True:
-                data = self.udpManager.receive_data()
+                data = self.udpRecvManager.receive_data()
                 if data is None:
                     continue
                 if data == b"EOF":

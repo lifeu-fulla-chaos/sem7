@@ -12,8 +12,8 @@ import numpy as np  # type: ignore
 from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "0.0.0.0"
-PORT_UDP, RECV_UDP = 4000, 4001
+RECV_HOST = "192.168.0.117"
+PORT_UDP, SEND_UDP, RECV_UDP = 4000, 4001, 4001
 logging.basicConfig(level=logging.INFO)
 
 
@@ -23,12 +23,13 @@ class MasterSystem(AudioHandler):
         self.sys = LorenzSystem(self.params)
         self.steps = 10000
         self.tcpManager = NetworkManager(HOST, PORT, "tcp")
-        self.udpManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, RECV_UDP))
+        self.udpSendManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, SEND_UDP))
+        self.udpRecvManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, RECV_UDP))
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None
         self.hmac_key = None
-        super().__init__(self.sys, self.udpManager)
+        super().__init__(self.sys, self.udpSendManager, self.udpRecvManager)
 
     def start(self):
         self.tcpManager.start_server()
@@ -98,17 +99,18 @@ if __name__ == "__main__":
         audio_thread = threading.Thread(
             target=master.send_audio_from_mic_realtime, daemon=True
         )
-        # audio_thread1 = threading.Thread(
-        #     target=master.receive_audio_realtime, daemon=True
-        # )
+        audio_thread1 = threading.Thread(
+            target=master.receive_audio_realtime, daemon=True
+        )
         system_thread.start()
         audio_thread.start()
-        # audio_thread1.start()  
+        audio_thread1.start()  
         audio_thread.join()
         system_thread.join()
-        # audio_thread1.join()
+        audio_thread1.join()
     except Exception as e:
         logging.error(f"Master: fatal error -> {e}")
     finally:
         master.tcpManager.close_connection()
-        master.udpManager.close_connection()
+        master.udpSendManager.close_connection()
+        master.udpRecvManager.close_connection()

@@ -11,7 +11,7 @@ import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "0.0.0.0"
-UDP_PORT, RECV_UDP = 4001, 4000
+UDP_PORT, SEND_UDP, RECV_UDP = 4001, 4000, 4000
 logging.basicConfig(level=logging.INFO)
 
 
@@ -19,7 +19,8 @@ class SlaveSystem(AudioHandler):
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
-        self.udpManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, RECV_UDP))
+        self.udpSendManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, RECV_UDP))
+        self.udpRecvManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, SEND_UDP))
         try:
             self.tcpManager.connect()
             logging.info("Slave: connected")
@@ -34,7 +35,7 @@ class SlaveSystem(AudioHandler):
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
         self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
-        super().__init__(self.sys, self.udpManager)
+        super().__init__(self.sys, self.udpSendManager, self.udpRecvManager)
         # Wait for master key
         while True:
             msg = self.tcpManager.recv()
@@ -103,17 +104,17 @@ if __name__ == "__main__":
         slave = SlaveSystem()
         slave.run()
         slave_system_thread = threading.Thread(target=slave.run_system, daemon=True)
-        # audio_thread1 = threading.Thread(
-        #     target=slave.send_audio_from_mic_realtime, daemon=True
-        # )
+        audio_thread1 = threading.Thread(
+            target=slave.send_audio_from_mic_realtime, daemon=True
+        )
         audio_thread = threading.Thread(
             target=slave.receive_audio_realtime, daemon=True
         )
         slave_system_thread.start()
         audio_thread.start()
-        # audio_thread1.start()
+        audio_thread1.start()
         slave_system_thread.join()
         audio_thread.join()
-        # audio_thread1.join()
+        audio_thread1.join()
     except Exception as e:
         logging.error(f"Slave: fatal error -> {e}")
