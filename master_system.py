@@ -13,7 +13,7 @@ from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.117"
-PORT_UDP, SEND_UDP, RECV_UDP = 4000, 4001, 4001
+PORT_UDP, SEND_UDP, RECV_UDP = 4000, 4001, 4002
 logging.basicConfig(level=logging.INFO)
 
 
@@ -24,7 +24,7 @@ class MasterSystem(AudioHandler):
         self.steps = 10000
         self.tcpManager = NetworkManager(HOST, PORT, "tcp")
         self.udpSendManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, SEND_UDP))
-        self.udpRecvManager = NetworkManager(HOST, PORT_UDP, "udp", (RECV_HOST, RECV_UDP))
+        self.udpRecvManager = NetworkManager(HOST, RECV_UDP, "udp", (RECV_HOST, RECV_UDP))
         self.master_key = None
         self.aes_inner = None
         self.aes_outer = None

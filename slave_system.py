@@ -10,8 +10,8 @@ from audio import AudioHandler
 import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "0.0.0.0"
-UDP_PORT, SEND_UDP, RECV_UDP = 4001, 4000, 4000
+RECV_HOST = "192.168.0.113"
+UDP_PORT, SEND_UDP, RECV_UDP = 4001, 4000, 4002
 logging.basicConfig(level=logging.INFO)
 
 
@@ -19,8 +19,8 @@ class SlaveSystem(AudioHandler):
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
-        self.udpSendManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, RECV_UDP))
-        self.udpRecvManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, SEND_UDP))
+        self.udpSendManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, SEND_UDP))
+        self.udpRecvManager = NetworkManager(HOST, RECV_UDP, "udp", (RECV_HOST, RECV_UDP))
         try:
             self.tcpManager.connect()
             logging.info("Slave: connected")
