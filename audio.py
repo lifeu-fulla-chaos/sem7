@@ -10,7 +10,7 @@ class AudioHandler:
         self.udpRecvManager = udpRecvManager
 
     def send_audio_from_mic_realtime(
-        self, duration=10, samplerate=44100, channels=1, chunk_size=16384
+        self, duration=10, samplerate=44100, channels=1, chunk_size=8192
     ):
         print("Streaming mic audio for", duration, "seconds...")
         start_time = time.time()
