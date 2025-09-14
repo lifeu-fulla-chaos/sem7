@@ -11,7 +11,7 @@ import sounddevice as sd  # type: ignore
 import numpy as np  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.117"
+RECV_HOST = "0.0.0.0"
 PORT_UDP, RECV_UDP = 4000, 4001
 logging.basicConfig(level=logging.INFO)
 
@@ -34,7 +34,7 @@ class MasterSystem:
     def run_system(self):
         while True:
             self.sys.run_steps(self.steps)
-            self.tcpManager.send({"type": "sync", "state": self.sys.state_history[-1].tolist()})  # type: ignore }
+            self.tcpManager.send({"type": "sync"})  # type: ignore }
             msg = self.tcpManager.recv()
             if msg and msg.get("ack") == "ok":
                 logging.info("Master: slave in sync")
@@ -86,12 +86,13 @@ class MasterSystem:
             audio_bytes = audio.tobytes()
 
             # Encrypt
-            enc_chunk, mask = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
+            print(self.sys.state_history[-1])
+            enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
             header = f"{chunk_index:06d}".encode()
-
+            iteration = f"{self.sys.iteration}".encode()
             # Send
-            print(f"Master: sending chunk {chunk_index} with mask {mask}")
-            self.udpManager.send_data(header + bytes.fromhex(enc_chunk))
+            print(f"Master: sending chunk {chunk_index} with iteration {self.sys.iteration}")
+            self.udpManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
             chunk_index += 1
 
         stream.stop()
@@ -124,7 +125,6 @@ class MasterSystem:
         # Step 1: compute 10k trajectory
         traj = self.sys.run_steps(self.steps, True)
         packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)  # type: ignore
-        print(packet[secret_idx][:3])
         iv, ct, tag = encrypt_packet(
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
         )
@@ -143,7 +143,7 @@ class MasterSystem:
         # Step 4: restart sync
         self.tcpManager.send({"type": "restart"})
         logging.info("Master: restarting trajectory sync...")
-        self.sys = LorenzSystem(self.params, initial_state=traj[secret_idx]) # type: ignore
+        self.sys = LorenzSystem(self.params, initial_state=packet[secret_idx][:3]) # type: ignore
         self.sys.run_steps(self.steps)
 
 
@@ -154,13 +154,13 @@ if __name__ == "__main__":
         master.run()
         system_thread = threading.Thread(target=master.run_system, daemon=True)
         # input_thread = threading.Thread(target=master.user_input, daemon=True)
-        # audio_thread = threading.Thread(
-        #     target=master.send_audio_from_mic_realtime, daemon=True
-        # )
+        audio_thread = threading.Thread(
+            target=master.send_audio_from_mic_realtime, daemon=True
+        )
         system_thread.start()
-        # audio_thread.start()
+        audio_thread.start()
         # input_thread.start()
-        # audio_thread.join()
+        audio_thread.join()
         system_thread.join()
         # input_thread.join()
     except Exception as e:

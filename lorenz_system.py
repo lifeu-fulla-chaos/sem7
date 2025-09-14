@@ -1,7 +1,6 @@
 import numpy as np # type: ignore
 from scipy.integrate import solve_ivp # type: ignore
 
-
 class LorenzParameters:
     def __init__(self, sigma, rho, beta):
         self.sigma = sigma
@@ -16,6 +15,7 @@ class LorenzSystem:
         self.initial_state = np.array(initial_state, dtype=float)
         self.state_history = None
         self.t = 0.0
+        self.iteration = 0
 
     def lorenz_equations(self, t, state):
         x, y, z = state
@@ -25,6 +25,7 @@ class LorenzSystem:
         return [dx, dy, dz]
 
     def run_steps(self, steps: int, return_traj: bool = False):
+        
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 
@@ -40,6 +41,7 @@ class LorenzSystem:
         self.state_history = solution.y.T
         self.initial_state = self.state_history[-1]
         self.t += (steps * self.dt)
+        self.iteration  = (self.iteration + 1) % 5
         if return_traj:
             return self.state_history
         return None

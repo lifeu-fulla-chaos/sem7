@@ -6,9 +6,10 @@ from encryption import *
 from master_system import RECV_UDP
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
+import time
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.113"
+RECV_HOST = "0.0.0.0"
 UDP_PORT, RECV_UDP = 4001, 4000
 logging.basicConfig(level=logging.INFO)
 
@@ -50,12 +51,6 @@ class SlaveSystem:
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "sync":
                 self.sys.run_steps(self.steps)
-                if (msg.get("state") == self.sys.state_history[-1]).all():
-                    print("nice")
-                else:
-                    print("not nice")
-                    print(msg.get("state"))
-                    print(self.sys.state_history[-1])
                 self.tcpManager.send({"ack": "ok"})
 
     def decrypt_message(self):
@@ -93,8 +88,7 @@ class SlaveSystem:
                     continue
 
                 logging.info(f"Slave: decoded index = {self.secret_idx}")
-                self.ref_state = packet[self.secret_idx][:3] # type: ignore
-                print(self.ref_state)
+                self.ref_state = packet[self.secret_idx][:3]  # type: ignore
                 self.tcpManager.send({"ack": "decoded"})
                 break
 
@@ -109,7 +103,7 @@ class SlaveSystem:
                 self.sys.run_steps(self.steps)
                 logging.info("Slave: restart acknowledged")
                 break
-    
+
     def receive_audio(self, output_path="received_audio.mp3"):
         # Receive the file length as a line of text
         file_len_data = self.udpManager.receive_data()
@@ -118,7 +112,7 @@ class SlaveSystem:
             return
         if isinstance(file_len_data, bytes):
             file_len_data = file_len_data.decode()
-        file_len = int(file_len_data.strip()) # type: ignore
+        file_len = int(file_len_data.strip())  # type: ignore
         print(f"Expecting {file_len} bytes.")
         chunk_size = 16384
         expected_num_chunks = (file_len + chunk_size - 1) // chunk_size
@@ -141,12 +135,13 @@ class SlaveSystem:
             if len(received) == expected_num_chunks:
                 break
         # Reassemble in order
-        audio_bytes = b''.join(received[i] for i in sorted(received))
+        audio_bytes = b"".join(received[i] for i in sorted(received))
         with open(output_path, "wb") as f:
             f.write(audio_bytes)
         print(f"Audio file written to {output_path}")
 
     def receive_audio_realtime(self, output_path="received_audio.raw"):
+        buffer = []
         print("Receiving audio stream...")
         received = {}
         while True:
@@ -157,19 +152,23 @@ class SlaveSystem:
                 break
 
             header = data[:6]
-            chunk = data[6:]
-
+            iteration = int(data[6:7].decode())  # type: ignore
+            chunk = data[7:]
+            while iteration != self.sys.iteration:
+                time.sleep(0.01)
             # Decrypt
-            dec_chunk, mask = xor_decrypt(chunk, self.sys.state_history[-1]) # type: ignore
-            seq = int(header.decode()) # type: ignore
+            print(self.sys.state_history[-1])
+            dec_chunk, _ = xor_decrypt(chunk, self.sys.state_history[-1])  # type: ignore
+            seq = int(header.decode())  # type: ignore
             received[seq] = dec_chunk
-            print(f"Received chunk {seq}, size {len(dec_chunk)}, mask {mask}")
+            print(f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}")
 
         # Reassemble
-        audio_bytes = b''.join(received[i] for i in sorted(received))
+        audio_bytes = b"".join(received[i] for i in sorted(received))
         with open(output_path, "wb") as f:
             f.write(audio_bytes)
         print(f"Audio stream written to {output_path}")
+
 
 if __name__ == "__main__":
     try:
@@ -177,12 +176,12 @@ if __name__ == "__main__":
         slave.run()
         slave_system_thread = threading.Thread(target=slave.run_system)
         # decrypt_thread = threading.Thread(target=slave.decrypt_message)
-        # audio_thread = threading.Thread(target=slave.receive_audio_realtime)
+        audio_thread = threading.Thread(target=slave.receive_audio_realtime)
         slave_system_thread.start()
-        # audio_thread.start()
+        audio_thread.start()
         # decrypt_thread.start()
         slave_system_thread.join()
         # decrypt_thread.join()
-        # audio_thread.join()
+        audio_thread.join()
     except Exception as e:
         logging.error(f"Slave: fatal error -> {e}")
