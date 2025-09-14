@@ -3,7 +3,6 @@ import threading
 import numpy as np  # type: ignore
 from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
-from master_system import RECV_UDP
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 from audio import AudioHandler
@@ -11,7 +10,7 @@ import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.113"
-UDP_PORT, SEND_UDP, RECV_UDP = 4001, 4000, 4002
+UDP_PORT, SEND_UDP = 4001, 4000
 logging.basicConfig(level=logging.INFO)
 
 
@@ -20,7 +19,7 @@ class SlaveSystem(AudioHandler):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
         self.udpSendManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, SEND_UDP))
-        self.udpRecvManager = NetworkManager(HOST, RECV_UDP, "udp", (RECV_HOST, RECV_UDP))
+        self.udpRecvManager = NetworkManager(HOST, SEND_UDP, "udp", None)
         try:
             self.tcpManager.connect()
             logging.info("Slave: connected")
