@@ -9,8 +9,7 @@ from audio import AudioHandler
 import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.113"
-UDP_PORT, SEND_UDP = 4000, 4001
+RECV_HOST = "192.168.0.102"
 logging.basicConfig(level=logging.INFO)
 
 
@@ -18,8 +17,6 @@ class SlaveSystem(AudioHandler):
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
-        self.udpSendManager = NetworkManager(HOST, UDP_PORT, "udp", (RECV_HOST, SEND_UDP))
-        self.udpRecvManager = NetworkManager(HOST, SEND_UDP, "udp", None)
         try:
             self.tcpManager.connect()
             logging.info("Slave: connected")
@@ -34,7 +31,7 @@ class SlaveSystem(AudioHandler):
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
         self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
-        super().__init__(self.sys, self.udpSendManager, self.udpRecvManager)
+        super().__init__(self.sys, RECV_HOST)
         # Wait for master key
         while True:
             msg = self.tcpManager.recv()
