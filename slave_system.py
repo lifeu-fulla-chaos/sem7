@@ -9,7 +9,7 @@ from audio import AudioHandler
 import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.102"
+RECV_HOST = "192.168.0.117"
 logging.basicConfig(level=logging.INFO)
 
 

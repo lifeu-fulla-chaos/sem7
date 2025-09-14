@@ -124,8 +124,4 @@ def xor_decrypt(enc_hex: bytes | str, state: np.ndarray):
         enc_b = enc_hex
     mask = derive_mask(np.array(state, dtype=float), len(enc_b))
     dec = bytes([b ^ m for b, m in zip(enc_b, mask)])
-    try:
-        return dec.decode(errors="strict"), mask
-    except UnicodeDecodeError:
-        print("unicode error")
-        return dec, mask
+    return dec, mask

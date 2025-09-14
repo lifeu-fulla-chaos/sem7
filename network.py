@@ -14,11 +14,9 @@ class NetworkManager:
         if self.mode == "udp":
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.socket.bind((self.host, self.port))
-            print(self.socket)
         else:
             self.socket = None
         self.conn = None
-        print(host, port, peer_addr)
 
     def start_server(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
