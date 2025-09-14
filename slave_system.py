@@ -6,7 +6,7 @@ from encryption import *
 from master_system import RECV_UDP
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
-import time
+from audio import AudioHandler
 import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
@@ -15,7 +15,7 @@ UDP_PORT, RECV_UDP = 4001, 4000
 logging.basicConfig(level=logging.INFO)
 
 
-class SlaveSystem:
+class SlaveSystem(AudioHandler):
     def __init__(self):
         self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
@@ -34,6 +34,7 @@ class SlaveSystem:
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
         self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
+        super().__init__(self.sys, self.udpManager)
         # Wait for master key
         while True:
             msg = self.tcpManager.recv()
@@ -53,15 +54,6 @@ class SlaveSystem:
             if msg and msg.get("type") == "sync":
                 self.sys.run_steps(self.steps)
                 self.tcpManager.send({"ack": "ok"})
-
-    def decrypt_message(self):
-        while True:
-            msg = self.udpManager.recv()
-            if msg and msg.get("type") == "message":
-                enc_hex = msg["enc"]
-                logging.info(f"{self.sys.state_history[-1]}")  # type: ignore
-                dec, _ = xor_decrypt(enc_hex, self.sys.state_history[-1])  # type: ignore
-                logging.info(f"Slave: decrypted message = {dec}")
 
     def run(self):
         # Step 1: receive & decode packet
@@ -105,77 +97,23 @@ class SlaveSystem:
                 logging.info("Slave: restart acknowledged")
                 break
 
-    def receive_audio(self, output_path="received_audio.mp3"):
-        # Receive the file length as a line of text
-        file_len_data = self.udpManager.receive_data()
-        if file_len_data is None:
-            print("No file length received.")
-            return
-        if isinstance(file_len_data, bytes):
-            file_len_data = file_len_data.decode()
-        file_len = int(file_len_data.strip())  # type: ignore
-        print(f"Expecting {file_len} bytes.")
-        chunk_size = 16384
-        expected_num_chunks = (file_len + chunk_size - 1) // chunk_size
-        print(f"Expecting {expected_num_chunks} chunks.")
-        received = {}
-        total_received = 0
-        while total_received < file_len:
-            data = self.udpManager.receive_data()
-            if data is None:
-                break
-            # data is bytes, first 6 bytes are header (sequence number), rest is chunk
-            header = data[:6]
-            chunk = data[6:]
-            chunk = xor_decrypt(chunk, self.sys.state_history[-1])[0]  # type: ignore
-            seq = int(header.decode())  # type: ignore
-            received[seq] = chunk
-            total_received += len(chunk)
-            print(f"Received chunk {seq}, size {len(chunk)}")
-            print(f"Total received: {total_received}/{file_len} bytes")
-            if len(received) == expected_num_chunks:
-                break
-        # Reassemble in order
-        audio_bytes = b"".join(received[i] for i in sorted(received))
-        with open(output_path, "wb") as f:
-            f.write(audio_bytes)
-        print(f"Audio file written to {output_path}")
-
-    def receive_audio_realtime(self, samplerate=44100, channels=1):
-        print("Receiving audio stream...")
-        with sd.OutputStream(samplerate=samplerate, channels=channels, dtype="int16") as stream:
-            while True:
-                data = self.udpManager.receive_data()
-                if data is None:
-                    continue
-                if data == b"EOF":
-                    break
-
-                header = data[:6]
-                iteration = int(data[6:7].decode())  # type: ignore
-                chunk = data[7:]
-                while iteration != self.sys.iteration:
-                    time.sleep(0.01)
-                # Decrypt
-                dec_chunk, _ = xor_decrypt(chunk, self.sys.state_history[-1])  # type: ignore
-                seq = int(header.decode())  # type: ignore
-                print(f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}")
-                audio_array = np.frombuffer(dec_chunk, dtype=np.int16) # type: ignore
-                stream.write(audio_array)
-
 
 if __name__ == "__main__":
     try:
         slave = SlaveSystem()
         slave.run()
-        slave_system_thread = threading.Thread(target=slave.run_system)
-        # decrypt_thread = threading.Thread(target=slave.decrypt_message)
-        audio_thread = threading.Thread(target=slave.receive_audio_realtime)
+        slave_system_thread = threading.Thread(target=slave.run_system, daemon=True)
+        # audio_thread1 = threading.Thread(
+        #     target=slave.send_audio_from_mic_realtime, daemon=True
+        # )
+        audio_thread = threading.Thread(
+            target=slave.receive_audio_realtime, daemon=True
+        )
         slave_system_thread.start()
         audio_thread.start()
-        # decrypt_thread.start()
+        # audio_thread1.start()
         slave_system_thread.join()
-        # decrypt_thread.join()
         audio_thread.join()
+        # audio_thread1.join()
     except Exception as e:
         logging.error(f"Slave: fatal error -> {e}")
