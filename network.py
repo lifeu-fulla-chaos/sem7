@@ -17,6 +17,7 @@ class NetworkManager:
         else:
             self.socket = None
         self.conn = None
+        print(host, port, peer_addr)
 
     def start_server(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
