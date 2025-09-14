@@ -10,7 +10,7 @@ import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.113"
-UDP_PORT, SEND_UDP = 4001, 4000
+UDP_PORT, SEND_UDP = 4000, 4001
 logging.basicConfig(level=logging.INFO)
 
 
