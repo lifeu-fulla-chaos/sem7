@@ -6,7 +6,7 @@ from encryption import *
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 from audio import AudioHandler
-import sounddevice as sd  # type: ignore
+import gc
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.102"
@@ -87,6 +87,8 @@ class SlaveSystem(AudioHandler):
         while True:
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "restart":
+                del self.sys
+                gc.collect()
                 self.sys = LorenzSystem(
                     self.params,
                     initial_state=self.ref_state,
