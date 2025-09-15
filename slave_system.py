@@ -9,13 +9,14 @@ from audio import AudioHandler
 import sounddevice as sd  # type: ignore
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.117"
+RECV_HOST = "192.168.0.102"
 logging.basicConfig(level=logging.INFO)
 
 
 class SlaveSystem(AudioHandler):
     def __init__(self):
-        self.sys = LorenzSystem(LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3))
+        self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
+        self.sys = LorenzSystem(self.params)
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
         try:
             self.tcpManager.connect()
@@ -87,9 +88,10 @@ class SlaveSystem(AudioHandler):
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "restart":
                 self.sys = LorenzSystem(
-                    LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3),
+                    self.params,
                     initial_state=self.ref_state,
                 )
+                self.sys.state_history = None
                 self.sys.run_steps(self.steps)
                 logging.info("Slave: restart acknowledged")
                 print("initial state", self.ref_state)
