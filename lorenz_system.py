@@ -40,7 +40,7 @@ class LorenzSystem:
             t_span=t_span,
             y0=self.initial_state,
             t_eval=t_eval,
-            method="RK45",
+            method="LSODA",
             rtol=1e-9,
             atol=1e-9,
         )
