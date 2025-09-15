@@ -46,9 +46,37 @@ class LorenzSystem:
         )
         self.state_history = solution.y.T
         self.initial_state = self.state_history[-1]
-        self.t += (steps * self.dt)
+        self.t += steps * self.dt
         self.iteration = (self.iteration + 1) % 5
         print("ending", self.state_history[-1], self.t)
+        if return_traj:
+            return self.state_history
+        return None
+
+    def run_steps1(self, steps: int, return_traj: bool = False):
+        traj = []
+        state = self.initial_state.copy()
+        if self.state_history is not None:
+            self.past = self.state_history[-1]
+            print("starting", self.state_history[-1])
+        for _ in range(steps):
+            # Classic RK4 scheme
+            k1 = np.array(self.lorenz_equations(0, state))
+            k2 = np.array(self.lorenz_equations(0, state + 0.5 * self.dt * k1))
+            k3 = np.array(self.lorenz_equations(0, state + 0.5 * self.dt * k2))
+            k4 = np.array(self.lorenz_equations(0, state + self.dt * k3))
+
+            state = state + (self.dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+            traj.append(state)
+
+        self.state_history = np.array(traj)
+        self.initial_state = self.state_history[-1]
+        self.t += steps * self.dt
+        self.iteration = (self.iteration + 1) % 5
+
+        print("ending", self.state_history[-1], self.t)
+
         if return_traj:
             return self.state_history
         return None
