@@ -50,7 +50,7 @@ class SlaveSystem(AudioHandler):
         while True:
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "sync":
-                self.sys.run_steps1(self.steps)
+                self.sys.run_steps(self.steps)
                 self.tcpManager.send({"ack": "ok"})
 
     def run(self):
@@ -95,7 +95,7 @@ class SlaveSystem(AudioHandler):
                 )
                 self.sys.state_history = None
                 print("initial state", self.ref_state)
-                self.sys.run_steps1(self.steps)
+                self.sys.run_steps(self.steps)
                 logging.info("Slave: restart acknowledged")
                 print("final state", self.sys.state_history[-1])
                 break
