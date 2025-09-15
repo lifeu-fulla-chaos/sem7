@@ -58,7 +58,6 @@ class LorenzSystem:
         state = self.initial_state.copy()
         if self.state_history is not None:
             self.past = self.state_history[-1]
-            print("starting", self.state_history[-1])
         for _ in range(steps):
             # Classic RK4 scheme
             k1 = np.array(self.lorenz_equations(0, state))
@@ -74,8 +73,6 @@ class LorenzSystem:
         self.initial_state = self.state_history[-1]
         self.t += steps * self.dt
         self.iteration = (self.iteration + 1) % 5
-
-        print("ending", self.state_history[-1], self.t)
 
         if return_traj:
             return self.state_history
