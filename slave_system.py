@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 class SlaveSystem(AudioHandler):
     def __init__(self):
         self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
-        self.sys = LorenzSystem(self.params)
+        self.sys = None
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
         try:
             self.tcpManager.connect()
