@@ -43,7 +43,7 @@ class AudioHandler:
             state = self.sys.state_history[-1].tobytes()
             # Send
             print(
-                f"Master: sending chunk {chunk_index}. size {state} with iteration {self.sys.iteration}"
+                f"Master: sending chunk {chunk_index}. size {len(state)} with iteration {self.sys.iteration}"
             )
             # self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
             self.udpSendManager.send_data(iteration + state)

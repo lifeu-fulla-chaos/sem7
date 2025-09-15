@@ -92,6 +92,8 @@ class SlaveSystem(AudioHandler):
                 )
                 self.sys.run_steps(self.steps)
                 logging.info("Slave: restart acknowledged")
+                print("initial state", self.ref_state)
+                print("final state", self.sys.state_history[-1])
                 break
 
 

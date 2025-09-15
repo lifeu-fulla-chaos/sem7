@@ -83,7 +83,9 @@ class MasterSystem(AudioHandler):
         self.tcpManager.send({"type": "restart"})
         logging.info("Master: restarting trajectory sync...")
         self.sys = LorenzSystem(self.params, initial_state=packet[secret_idx][:3])  # type: ignore
+        print("initial state", packet[secret_idx][:3])
         self.sys.run_steps(self.steps)
+        print("final state", self.sys.state_history[-1])
 
 
 if __name__ == "__main__":
