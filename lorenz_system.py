@@ -1,5 +1,6 @@
-import numpy as np # type: ignore
-from scipy.integrate import solve_ivp # type: ignore
+import numpy as np  # type: ignore
+from scipy.integrate import solve_ivp  # type: ignore
+
 
 class LorenzParameters:
     def __init__(self, sigma, rho, beta):
@@ -9,13 +10,16 @@ class LorenzParameters:
 
 
 class LorenzSystem:
-    def __init__(self, params: LorenzParameters, dt=0.01, initial_state=[1.0, 1.0, 1.0]):
+    def __init__(
+        self, params: LorenzParameters, dt=0.01, initial_state=[1.0, 1.0, 1.0]
+    ):
         self.params = params
         self.dt = float(dt)
         self.initial_state = np.array(initial_state, dtype=float)
         self.state_history = None
         self.t = 0.0
         self.iteration = 0
+        self.past = None
 
     def lorenz_equations(self, t, state):
         x, y, z = state
@@ -25,7 +29,8 @@ class LorenzSystem:
         return [dx, dy, dz]
 
     def run_steps(self, steps: int, return_traj: bool = False):
-        
+        if self.state_history is not None:
+            self.past = self.state_history[-1]
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 
@@ -40,24 +45,35 @@ class LorenzSystem:
         )
         self.state_history = solution.y.T
         self.initial_state = self.state_history[-1]
-        self.t += (steps * self.dt)
-        self.iteration  = (self.iteration + 1) % 5
+        self.t += steps * self.dt
+        self.iteration = (self.iteration + 1) % 5
         if return_traj:
             return self.state_history
         return None
 
     # -------- Slave dyn + backstepping --------
-    def backstepping_control(self, x_master: np.ndarray, y_slave: np.ndarray, k: float = 5.0):
+    def backstepping_control(
+        self, x_master: np.ndarray, y_slave: np.ndarray, k: float = 5.0
+    ):
         x = np.asarray(x_master, dtype=float)
         y = np.asarray(y_slave, dtype=float)
         e = y - x
 
         u1 = -self.params.sigma * ((y[1] - y[0]) - (x[1] - x[0])) + e[1]
-        u2 = -self.params.rho * (y[0] - x[0]) + (y[1] - x[1]) + (y[0] * y[2]) - (x[0] * x[2]) + e[2]
-        u3 = (-y[0] * y[1]) + (x[0] * x[1]) + self.params.beta * (y[2] - x[2]) \
-             - ((3 + 2 * k) * e[0]) - ((5 + 2 * k) * e[1]) - ((3 + k) * e[2])
+        u2 = (
+            -self.params.rho * (y[0] - x[0])
+            + (y[1] - x[1])
+            + (y[0] * y[2])
+            - (x[0] * x[2])
+            + e[2]
+        )
+        u3 = (
+            (-y[0] * y[1])
+            + (x[0] * x[1])
+            + self.params.beta * (y[2] - x[2])
+            - ((3 + 2 * k) * e[0])
+            - ((5 + 2 * k) * e[1])
+            - ((3 + k) * e[2])
+        )
 
         return np.array([u1, u2, u3], dtype=float), e
-
-
-    
