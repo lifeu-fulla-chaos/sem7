@@ -39,6 +39,7 @@ class AudioHandler:
             enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
             header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()
+            print("encryption", self.sys.state_history[-1])
             # Send
             print(
                 f"Master: sending chunk {chunk_index}. size {len(audio_bytes)} with iteration {self.sys.iteration}"
@@ -66,12 +67,12 @@ class AudioHandler:
                 header = data[:6]
                 iteration = int(data[6:7].decode())  # type: ignore
                 chunk = data[7:]
-
                 while iteration > self.sys.iteration:
                     time.sleep(0.01)
                 hist = self.sys.state_history[-1]
                 if iteration < self.sys.iteration:
                     hist = self.sys.past
+                print("decryption", hist)
                 # Decrypt
                 dec_chunk, _ = xor_decrypt(chunk, hist)  # type: ignore
                 seq = int(header.decode())  # type: ignore
