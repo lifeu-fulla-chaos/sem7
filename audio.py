@@ -67,6 +67,7 @@ class AudioHandler:
                 iteration = int(data[6:7].decode())  # type: ignore
                 chunk = data[7:]
                 while iteration != self.sys.iteration:
+                    print("here")
                     time.sleep(0.01)
                 # Decrypt
                 dec_chunk, _ = xor_decrypt(chunk, self.sys.state_history[-1])  # type: ignore
