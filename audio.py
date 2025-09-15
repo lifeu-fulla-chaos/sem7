@@ -36,8 +36,8 @@ class AudioHandler:
             audio_bytes = audio.tobytes()
 
             # Encrypt
-            # enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
-            # header = f"{chunk_index:06d}".encode()
+            enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
+            header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()
             # print("encryption", self.sys.state_history[-1])
             state = self.sys.state_history[-1].tobytes()
@@ -45,8 +45,8 @@ class AudioHandler:
             print(
                 f"Master: sending chunk {chunk_index}. size {len(state)} with iteration {self.sys.iteration}"
             )
-            # self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
-            self.udpSendManager.send_data(iteration + state)
+            self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
+            # self.udpSendManager.send_data(iteration + state)
             chunk_index += 1
 
         stream.stop()
@@ -66,26 +66,26 @@ class AudioHandler:
                 if data == b"EOF":
                     break
 
-                # header = data[:6]
-                iteration = int(data[:1].decode())  # type: ignore
-                state = np.frombuffer(data[1:], dtype=float)  # type: ignore
-                # chunk = data[7:]
+                header = data[:6]
+                iteration = int(data[6:7].decode())  # type: ignore
+                # state = np.frombuffer(data[1:], dtype=float)  # type: ignore
+                chunk = data[7:]
                 while iteration > self.sys.iteration:
                     time.sleep(0.01)
                 hist = self.sys.state_history[-1]
                 if iteration < self.sys.iteration:
                     hist = self.sys.past
-                if np.equal(hist, state).all():
-                    print(f"Received matching state for iteration {iteration}")
-                else:
-                    print(
-                        f"State mismatch! Received: {state}, Expected: {hist}, Iteration: {iteration}"
-                    )
+                # if np.equal(hist, state).all():
+                #     print(f"Received matching state for iteration {iteration}")
+                # else:
+                #     print(
+                #         f"State mismatch! Received: {state}, Expected: {hist}, Iteration: {iteration}"
+                #     )
                 # Decrypt
-                # dec_chunk, _ = xor_decrypt(chunk, hist)  # type: ignore
-                # seq = int(header.decode())  # type: ignore
-                # print(
-                #     f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}"
-                # )
-                # audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
-                # stream.write(audio_array)
+                dec_chunk, _ = xor_decrypt(chunk, hist)  # type: ignore
+                seq = int(header.decode())  # type: ignore
+                print(
+                    f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}"
+                )
+                audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
+                stream.write(audio_array)
