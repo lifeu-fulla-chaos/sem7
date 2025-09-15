@@ -32,7 +32,7 @@ class LorenzSystem:
 
         if self.state_history is not None:
             self.past = self.state_history[-1]
-            print(self.state_history[-1])
+            print("starting", self.state_history[-1])
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 
@@ -49,7 +49,7 @@ class LorenzSystem:
         self.initial_state = self.state_history[-1]
         self.t += steps * self.dt
         self.iteration = (self.iteration + 1) % 5
-        print(self.state_history[-1])
+        print("ending", self.state_history[-1])
         if return_traj:
             return self.state_history
         return None
