@@ -29,7 +29,6 @@ class LorenzSystem:
         return [dx, dy, dz]
 
     def run_steps(self, steps: int, return_traj: bool = False):
-
         if self.state_history is not None:
             self.past = self.state_history[-1]
             print("starting", self.state_history[-1])
@@ -49,7 +48,7 @@ class LorenzSystem:
         self.initial_state = self.state_history[-1]
         self.t += steps * self.dt
         self.iteration = (self.iteration + 1) % 5
-        print("ending", self.state_history[-1])
+        print("ending", self.state_history[-1], self.t)
         if return_traj:
             return self.state_history
         return None
