@@ -6,7 +6,6 @@ from encryption import *
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
 from audio import AudioHandler
-import gc
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.102"
@@ -16,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 class SlaveSystem(AudioHandler):
     def __init__(self):
         self.params = LorenzParameters(sigma=10.0, rho=28.0, beta=8 / 3)
-        self.sys = None
         self.tcpManager = NetworkManager(RECV_HOST, PORT, "tcp")
         try:
             self.tcpManager.connect()
@@ -87,8 +85,6 @@ class SlaveSystem(AudioHandler):
         while True:
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "restart":
-                del self.sys
-                gc.collect()
                 self.sys = LorenzSystem(
                     self.params,
                     initial_state=self.ref_state,
