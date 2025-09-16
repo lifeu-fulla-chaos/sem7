@@ -32,7 +32,7 @@ class MasterSystem(AudioHandler):
 
     def run_system(self):
         while True:
-            self.sys.run_steps(self.steps)
+            self.sys.run_steps1(self.steps)
             self.tcpManager.send({"type": "sync"})  # type: ignore }
             msg = self.tcpManager.recv()
             if msg and msg.get("ack") == "ok":
@@ -62,7 +62,7 @@ class MasterSystem(AudioHandler):
                 break
 
         # Step 1: compute 10k trajectory
-        traj = self.sys.run_steps(self.steps, True)
+        traj = self.sys.run_steps1(self.steps, True)
         packet, secret_idx = make_packet(traj, aes_key=self.aes_inner)  # type: ignore
         iv, ct, tag = encrypt_packet(
             packet, aes_key=self.aes_outer, hmac_key=self.hmac_key
@@ -84,7 +84,7 @@ class MasterSystem(AudioHandler):
         logging.info("Master: restarting trajectory sync...")
         self.sys = LorenzSystem(self.params, initial_state=packet[secret_idx][:3])  # type: ignore
         print("initial state", packet[secret_idx][:3])
-        self.sys.run_steps(self.steps)
+        self.sys.run_steps1(self.steps)
         print("final state", self.sys.state_history[-1])
 
 
