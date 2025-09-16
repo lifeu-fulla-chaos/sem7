@@ -72,7 +72,7 @@ class LorenzSystem:
         self.state_history = np.array(traj)
         self.initial_state = self.state_history[-1]
         self.t += steps * self.dt
-        self.iteration = (self.iteration + 1) % 5
+        self.iteration += 1
 
         if return_traj:
             return self.state_history
