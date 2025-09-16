@@ -1,6 +1,6 @@
 import numpy as np  # type: ignore
 from scipy.integrate import solve_ivp  # type: ignore
-
+import matplotlib.pyplot as plt  # type: ignore
 
 class LorenzParameters:
     def __init__(self, sigma, rho, beta):
@@ -31,7 +31,6 @@ class LorenzSystem:
     def run_steps(self, steps: int, return_traj: bool = False):
         if self.state_history is not None:
             self.past = self.state_history[-1]
-            print("starting", self.state_history[-1])
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 
@@ -48,7 +47,6 @@ class LorenzSystem:
         self.initial_state = self.state_history[-1]
         self.t += steps * self.dt
         self.iteration += 1
-        print("ending", self.state_history[-1], self.t)
         if return_traj:
             return self.state_history
         return None
@@ -59,7 +57,6 @@ class LorenzSystem:
         if self.state_history is not None:
             self.past = self.state_history[-1]
         for _ in range(steps):
-            # Classic RK4 scheme
             k1 = np.array(self.lorenz_equations(0, state))
             k2 = np.array(self.lorenz_equations(0, state + 0.5 * self.dt * k1))
             k3 = np.array(self.lorenz_equations(0, state + 0.5 * self.dt * k2))
