@@ -85,9 +85,8 @@ class AudioHandler:
                 #     )
                 # Decrypt
                 dec_chunk, _ = xor_decrypt(chunk, hist)  # type: ignore
-                seq = int(header.decode())  # type: ignore
                 print(
-                    f"Received chunk {seq}, size {len(dec_chunk)}, iteration {iteration}"
+                    f"Received chunk {header}, size {len(dec_chunk)}, iteration {iteration}"
                 )
                 audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
                 stream.write(audio_array)
