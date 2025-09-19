@@ -8,7 +8,7 @@ from network import NetworkManager
 from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.117"
+RECV_HOST = "192.168.0.107"
 logging.basicConfig(level=logging.INFO)
 
 
@@ -31,7 +31,7 @@ class SlaveSystem(AudioHandler):
         # RSA key generation and exchange
         self.private_key, self.public_key = generate_rsa_keys()
         self.tcpManager.send({"type": "rsa_pubkey", "pubkey": self.public_key.decode()})
-        super().__init__(self.sys, RECV_HOST)
+        super().__init__(self.sys, RECV_HOST) # type: ignore
         # Wait for master key
         while True:
             msg = self.tcpManager.recv()
@@ -49,7 +49,7 @@ class SlaveSystem(AudioHandler):
         while True:
             msg = self.tcpManager.recv()
             if msg and msg.get("type") == "sync":
-                self.sys.run_steps1(self.steps)
+                self.sys.run_steps1(self.steps) # type: ignore
                 self.tcpManager.send({"ack": "ok"})
 
     def run(self):

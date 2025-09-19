@@ -1,9 +1,10 @@
 import time
 import sounddevice as sd
-from encryption import xor_encrypt, xor_decrypt
+from encryption import *
 import numpy as np  # type: ignore
 from network import NetworkManager
 import logging
+from lorenz_system import LorenzSystem
 
 HOST = "0.0.0.0"
 PORT_UDP = 4000
@@ -11,7 +12,7 @@ SEND_UDP = 4001
 
 
 class AudioHandler:
-    def __init__(self, sys, recv_host):
+    def __init__(self, sys: LorenzSystem, recv_host):
         self.sys = sys
         self.udpSendManager = NetworkManager(
             HOST, PORT_UDP, "udp", (recv_host, SEND_UDP)
@@ -37,14 +38,18 @@ class AudioHandler:
             audio_bytes = audio.tobytes()
 
             # Encrypt
-            enc_chunk, _ = xor_encrypt(audio_bytes, self.sys.state_history[-1])  # type: ignore
+            enc_chunk, audio_nonce, auth_tag = encrypt_audio(
+                chunk_index, audio_bytes, self.sys.state_history
+            )  # type: ignore
             header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()
             # Send
             logging.info(
                 f"Master: sending chunk {chunk_index}. size {len(enc_chunk)} with iteration {self.sys.iteration}"
             )
-            self.udpSendManager.send_data(header + iteration + bytes.fromhex(enc_chunk))
+            self.udpSendManager.send_data(
+                header + iteration + audio_nonce + auth_tag + enc_chunk
+            )
             chunk_index += 1
 
         stream.stop()
@@ -67,13 +72,8 @@ class AudioHandler:
                 header = int(data[:6].decode())  # type: ignore
                 iteration = int(data[6:7].decode())  # type: ignore
                 chunk = data[7:]
-                while iteration > self.sys.iteration:
-                    time.sleep(0.01)
-                hist = self.sys.state_history[-1]
-                if iteration < self.sys.iteration:
-                    hist = self.sys.past
 
-                dec_chunk, _ = xor_decrypt(chunk, hist)  # type: ignore
+                dec_chunk, _ = decrypt_audio(chunk, header, self.sys.state_history)  # type: ignore
                 logging.info(
                     f"Received chunk {header}, size {len(dec_chunk)}, iteration {iteration}"
                 )

@@ -10,7 +10,7 @@ import time
 from audio import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.117"
+RECV_HOST = "192.168.0.109"
 logging.basicConfig(level=logging.INFO)
 
 
