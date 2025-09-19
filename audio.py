@@ -22,7 +22,7 @@ class AudioHandler:
     def send_audio_from_mic_realtime(
         self, duration=10, samplerate=44100, channels=1, chunk_size=8192
     ):
-        logging.info("Streaming mic audio for {duration} seconds...")
+        logging.info(f"Streaming mic audio for {duration} seconds...")
         start_time = time.time()
         stream = sd.InputStream(
             samplerate=samplerate,
