@@ -202,10 +202,7 @@ def inverse_sbox(sbox):
     return inv_sbox
 
 
-def decrypt_audio(encrypted_packet, frame_no, lorenz_states):
-    ciphertext = encrypted_packet["ciphertext"]
-    frame_nonce = encrypted_packet["frame_nonce"]
-    auth_tag = encrypted_packet["auth_tag"]
+def decrypt_audio(chunk, frame_no, audio_nonce, auth_tag, lorenz_states):
 
     # Step 2: Get same Lorenz state as encryption
     lorenz_state = lorenz_states[frame_no % len(lorenz_states)]
@@ -215,7 +212,7 @@ def decrypt_audio(encrypted_packet, frame_no, lorenz_states):
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
     # Step 1: Verify HMAC first
-    auth_data = struct.pack(">I", frame_no) + frame_nonce + ciphertext
+    auth_data = struct.pack(">I", frame_no) + audio_nonce + chunk
     expected_tag = hmac.new(lorenz_bytes, auth_data, hashlib.sha256).digest()
 
     if not hmac.compare_digest(auth_tag, expected_tag):
@@ -229,13 +226,13 @@ def decrypt_audio(encrypted_packet, frame_no, lorenz_states):
     inv_sbox = inverse_sbox(sbox)
 
     # Step 5: Generate same keystream
-    keystream = sha256_counter_keystream(frame_nonce, 0, len(ciphertext))
+    keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
 
     # Step 6: Decrypt by reversing: Feedback -> Inverse S-box -> XOR
     decrypted = bytearray()
     prev_byte = 0xA5  # Same IV as audio encryption
 
-    for i, byte in enumerate(ciphertext):
+    for i, byte in enumerate(chunk):
         # Reverse feedback chain
         chain_byte = byte ^ prev_byte
         # Reverse S-box substitution

@@ -44,7 +44,6 @@ class NetworkManager:
                 raise RuntimeError("No connection available to send data.")
         elif self.mode == "udp":
             if self.socket:
-                print(len(data))
                 self.socket.sendto(data, self.peer_addr)  # type: ignore
             else:
                 raise RuntimeError("No connection available to send data.")
