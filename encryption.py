@@ -171,15 +171,14 @@ def encrypt_audio(audio_counter, audio_data, lorenz_states):
     sbox = fisher_yates_sbox(audio_seed)
 
     # Step 6: Convert mixed data to bytes for encryption
-    audio_bytes = mixed_data.astype(np.float32).tobytes()
     audio_nonce = struct.pack(">Q", audio_counter)
-    keystream = sha256_counter_keystream(audio_nonce, 0, len(audio_bytes))
+    keystream = sha256_counter_keystream(audio_nonce, 0, len(mixed_data))
 
     # Step 7: Encrypt with different pipeline for audio: XOR -> S-box -> Feedback
     encrypted = bytearray()
     prev_byte = 0xA5  # Different IV for audio
 
-    for i, byte in enumerate(audio_bytes):
+    for i, byte in enumerate(mixed_data):
         # XOR with keystream first (different order than video)
         xor_byte = byte ^ keystream[i % len(keystream)]
         # S-box substitution
