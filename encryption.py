@@ -128,22 +128,22 @@ def sha256_counter_keystream(key, counter, length):
     return keystream[:length]
 
 
-def encrypt_audio(audio_counter, audio_data, lorenz_states):
-    lorenz_state = lorenz_states[audio_counter % len(lorenz_states)]
-    print(lorenz_state)
-    mixed_data = audio_data + lorenz_state[0] * 0.1  # Small mixing factor
+def encrypt_audio(seq_no, chunk, lorenz_states):
+    lorenz_state = lorenz_states[seq_no % len(lorenz_states)]
+    print(seq_no, lorenz_state)
+    mixed_data = chunk + lorenz_state[0] * 0.1  # Small mixing factor
 
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
-    seed_input = lorenz_bytes + struct.pack(">I", audio_counter)  # Different key slice
+    seed_input = lorenz_bytes + struct.pack(">I", seq_no)  # Different key slice
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
 
     # Step 5: Generate S-box
     sbox = fisher_yates_sbox(audio_seed)
 
     # Step 6: Convert mixed data to bytes for encryption
-    audio_nonce = struct.pack(">Q", audio_counter)
+    audio_nonce = struct.pack(">Q", seq_no)
     keystream = sha256_counter_keystream(audio_nonce, 0, len(mixed_data))
 
     # Step 7: Encrypt with different pipeline for audio: XOR -> S-box -> Feedback
@@ -161,7 +161,7 @@ def encrypt_audio(audio_counter, audio_data, lorenz_states):
         prev_byte = chain_byte
 
     # Step 8: Generate HMAC
-    auth_data = struct.pack(">I", audio_counter) + audio_nonce + bytes(encrypted)
+    auth_data = struct.pack(">I", seq_no) + audio_nonce + bytes(encrypted)
     auth_tag = hmac.new(lorenz_bytes, auth_data, hashlib.sha256).digest()
     return encrypted, audio_nonce, auth_tag
 
@@ -178,7 +178,7 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_states):
 
     # Step 2: Get same Lorenz state as encryption
     lorenz_state = lorenz_states[seq_no % len(lorenz_states)]
-    print(lorenz_state)
+    print(seq_no, lorenz_state)
     # Step 3: Generate same audio seed (different from video)
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
