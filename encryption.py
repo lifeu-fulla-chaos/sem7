@@ -103,34 +103,6 @@ def decrypt_packet(
     return np.array(json.loads(blob.decode()))
 
 
-# -------- XOR message using Lorenz state --------
-
-
-def derive_mask(state: np.ndarray, length: int) -> bytes:
-    s = json.dumps(
-        np.asarray(state, dtype=float).tolist(), separators=(",", ":")
-    ).encode()
-    h = hashlib.sha256(s).digest()
-    return (h * ((length // len(h)) + 1))[:length]
-
-
-def xor_encrypt(msg: str | bytes, state: np.ndarray) -> tuple[str, bytes]:
-    msg_b = msg.encode() if isinstance(msg, str) else msg
-    mask = derive_mask(np.array(state, dtype=float), len(msg_b))
-    enc = bytes([b ^ m for b, m in zip(msg_b, mask)])
-    return enc.hex(), mask
-
-
-def xor_decrypt(enc_hex: bytes | str, state: np.ndarray):
-    if isinstance(enc_hex, str):
-        enc_b = bytes.fromhex(enc_hex)
-    else:
-        enc_b = enc_hex
-    mask = derive_mask(np.array(state, dtype=float), len(enc_b))
-    dec = bytes([b ^ m for b, m in zip(enc_b, mask)])
-    return dec, mask
-
-
 def fisher_yates_sbox(seed):
     """Generate S-box using Fisher-Yates shuffle with given seed"""
     random.seed(seed)
@@ -202,23 +174,24 @@ def inverse_sbox(sbox):
     return inv_sbox
 
 
-def decrypt_audio(chunk, frame_no, audio_nonce, auth_tag, lorenz_states):
+def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_states):
 
     # Step 2: Get same Lorenz state as encryption
-    lorenz_state = lorenz_states[frame_no % len(lorenz_states)]
+    lorenz_state = lorenz_states[seq_no % len(lorenz_states)]
 
     # Step 3: Generate same audio seed (different from video)
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
     # Step 1: Verify HMAC first
-    auth_data = struct.pack(">I", frame_no) + audio_nonce + chunk
+    auth_data = struct.pack(">I", seq_no) + audio_nonce + chunk
     expected_tag = hmac.new(lorenz_bytes, auth_data, hashlib.sha256).digest()
 
     if not hmac.compare_digest(auth_tag, expected_tag):
-        raise ValueError("Audio authentication failed")
+        print(f"Audio {seq_no}: Integrity check failed!")
+        return np.zeros(0, dtype=np.int16).tobytes()  # Return empty on auth failure
 
-    seed_input = lorenz_bytes + struct.pack(">I", frame_no)
+    seed_input = lorenz_bytes + struct.pack(">I", seq_no)
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
 
     # Step 4: Generate same S-box and inverse
@@ -250,7 +223,7 @@ def decrypt_audio(chunk, frame_no, audio_nonce, auth_tag, lorenz_states):
         audio_float = mixed_data - lorenz_state[0] * 0.1  # Reverse the mixing
         audio_int16 = np.clip(audio_float, -32768, 32767).astype(np.int16)
 
-        print(f"Audio {frame_no}: Decrypted successfully")
+        print(f"Audio {seq_no}: Decrypted successfully")
         return audio_int16.tobytes()
     except Exception as e:
-        raise ValueError(f"Audio reconstruction failed for block {frame_no}: {e}")
+        raise ValueError(f"Audio reconstruction failed for block {seq_no}: {e}")
