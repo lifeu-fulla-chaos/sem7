@@ -75,7 +75,7 @@ class AudioHandler:
                 auth_tag = data[15:47]
                 chunk = data[47:]
 
-                dec_chunk, _ = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history)  # type: ignore
+                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history)  # type: ignore
                 logging.info(
                     f"Received chunk {header}, size {len(dec_chunk)}, iteration {iteration}"
                 )
