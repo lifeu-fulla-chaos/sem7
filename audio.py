@@ -45,7 +45,7 @@ class AudioHandler:
             iteration = f"{self.sys.iteration}".encode()
             # Send
             logging.info(
-                f"Master: sending chunk {chunk_index}. size {len(enc_chunk)} with iteration {self.sys.iteration}"
+                f"Master: sending chunk {chunk_index}. size {len(enc_chunk) + len(header) + len(iteration) + len(audio_nonce) + len(auth_tag)} with iteration {self.sys.iteration}"
             )
             self.udpSendManager.send_data(
                 header + iteration + audio_nonce + auth_tag + enc_chunk
@@ -74,10 +74,10 @@ class AudioHandler:
                 audio_nonce = data[7:15]
                 auth_tag = data[15:47]
                 chunk = data[47:]
-
-                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history)  # type: ignore
                 logging.info(
-                    f"Received chunk {header}, size {len(dec_chunk)}, iteration {iteration}"
+                    f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
                 )
+                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history)  # type: ignore
+
                 audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
                 stream.write(audio_array)
