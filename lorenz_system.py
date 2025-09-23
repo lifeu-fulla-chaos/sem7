@@ -30,7 +30,7 @@ class LorenzSystem:
 
     def run_steps(self, steps: int, return_traj: bool = False):
         if self.state_history is not None:
-            self.past = self.state_history[-1]
+            self.past = self.state_history
         t_span = (self.t, self.t + self.dt * steps)
         t_eval = np.linspace(*t_span, steps)
 

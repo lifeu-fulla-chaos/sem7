@@ -77,7 +77,11 @@ class AudioHandler:
                 logging.info(
                     f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
                 )
-                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history[header])  # type: ignore
+                if iteration != self.sys.iteration:
+                    state = self.sys.past[header] # type: ignore
+                else:
+                    state = self.sys.state_history[header] # type: ignore
+                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
 
                 audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
                 stream.write(audio_array)
