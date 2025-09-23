@@ -128,8 +128,7 @@ def sha256_counter_keystream(key, counter, length):
     return keystream[:length]
 
 
-def encrypt_audio(seq_no, chunk, lorenz_states):
-    lorenz_state = lorenz_states[seq_no % len(lorenz_states)]
+def encrypt_audio(seq_no, chunk, lorenz_state):
     print("enc", seq_no, lorenz_state)
     mixed_data = chunk + lorenz_state[0] * 0.1  # Small mixing factor
 
@@ -174,10 +173,9 @@ def inverse_sbox(sbox):
     return inv_sbox
 
 
-def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_states):
+def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     # Step 2: Get same Lorenz state as encryption
-    lorenz_state = lorenz_states[seq_no % len(lorenz_states)]
     print("dec", seq_no, lorenz_state)
     # Step 3: Generate same audio seed (different from video)
     lorenz_bytes = struct.pack(

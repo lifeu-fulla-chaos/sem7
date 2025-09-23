@@ -39,8 +39,8 @@ class AudioHandler:
 
             # Encrypt
             enc_chunk, audio_nonce, auth_tag = encrypt_audio(
-                chunk_index, audio_bytes, self.sys.state_history
-            )  # type: ignore
+                chunk_index, audio_bytes, self.sys.state_history[chunk_index]  # type: ignore
+            )
             header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()
             # Send
@@ -77,7 +77,7 @@ class AudioHandler:
                 logging.info(
                     f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
                 )
-                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history)  # type: ignore
+                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, self.sys.state_history[header])  # type: ignore
 
                 audio_array = np.frombuffer(dec_chunk, dtype=np.int16)  # type: ignore
                 stream.write(audio_array)
