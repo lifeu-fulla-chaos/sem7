@@ -55,7 +55,7 @@ class LorenzSystem:
         traj = []
         state = self.initial_state.copy()
         if self.state_history is not None:
-            self.past = self.state_history[-1]
+            self.past = self.state_history
         for _ in range(steps):
             k1 = np.array(self.lorenz_equations(0, state))
             k2 = np.array(self.lorenz_equations(0, state + 0.5 * self.dt * k1))
