@@ -77,7 +77,7 @@ class AudioHandler:
                 logging.info(
                     f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
                 )
-                if iteration != self.sys.iteration:
+                if iteration != self.sys.iteration and self.sys.past is not None:
                     state = self.sys.past[header] # type: ignore
                 else:
                     state = self.sys.state_history[header] # type: ignore
