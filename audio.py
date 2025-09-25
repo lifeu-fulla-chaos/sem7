@@ -61,6 +61,7 @@ class AudioHandler:
 
     def receive_audio_realtime(self, samplerate=44100, channels=1):
         logging.info("Receiving audio stream...")
+        received_chunks = []  # store all decrypted chunks
         with sd.OutputStream(
             samplerate=samplerate, channels=channels, dtype="int16"
         ) as stream:
@@ -80,12 +81,21 @@ class AudioHandler:
                     f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
                 )
                 if iteration != self.sys.iteration and self.sys.past is not None:
-                    state = self.sys.past[header] # type: ignore
+                    state = self.sys.past[header]  # type: ignore
                 else:
-                    state = self.sys.state_history[header] # type: ignore
+                    state = self.sys.state_history[header]  # type: ignore
                 dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
 
                 audio_array = np.frombuffer(dec_chunk, dtype="<i2")  # type: ignore
-                # audio_array = np.reshape(audio_array, (-1, channels))  # type: ignore
+                audio_array = np.reshape(audio_array, (-1, channels))  # type: ignore
                 print(audio_array[:100])
                 stream.write(audio_array)
+
+                received_chunks.append(dec_chunk)
+
+                all_audio = b"".join(received_chunks)
+        with wave.open("outfile.wav", "wb") as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(2)  # int16 = 2 bytes
+            wf.setframerate(samplerate)
+            wf.writeframes(all_audio)  # type: ignore
