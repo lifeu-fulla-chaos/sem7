@@ -36,7 +36,7 @@ class AudioHandler:
         chunk_index = 0
         while time.time() - start_time < duration:
             audio, _ = stream.read(chunk_size)
-            print(audio[:100])
+            print("inp audio", audio[:100])
             audio_bytes = audio.tobytes()
 
             # Encrypt
@@ -88,7 +88,7 @@ class AudioHandler:
 
                 audio_array = np.frombuffer(dec_chunk, dtype="<i2")  # type: ignore
                 audio_array = np.reshape(audio_array, (-1, channels))  # type: ignore
-                print(audio_array[:100])
+                print("dec audio", audio_array[:100])
                 stream.write(audio_array)
 
                 received_chunks.append(dec_chunk)
