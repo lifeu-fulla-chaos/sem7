@@ -130,7 +130,6 @@ def sha256_counter_keystream(key, counter, length):
 
 def encrypt_audio(seq_no, chunk, lorenz_state):
     print("enc", seq_no, lorenz_state)
-    # mixed_data = chunk + lorenz_state[0] * 0.1  # Small mixing factor
 
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
