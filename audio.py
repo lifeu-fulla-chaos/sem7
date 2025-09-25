@@ -1,3 +1,4 @@
+import wave
 import time
 import sounddevice as sd
 from encryption import *
