@@ -36,6 +36,7 @@ class AudioHandler:
         chunk_index = 0
         while time.time() - start_time < duration:
             audio, _ = stream.read(chunk_size)
+            print(audio[:100])
             audio_bytes = audio.tobytes()
 
             # Encrypt
