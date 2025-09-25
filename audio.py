@@ -86,7 +86,7 @@ class AudioHandler:
                     state = self.sys.state_history[header]  # type: ignore
                 dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
 
-                audio_array = np.reshape(audio_array, (-1, channels))  # type: ignore
+                audio_array = np.reshape(dec_chunk, (-1, channels))  # type: ignore
                 print("dec audio", audio_array[:100])
                 stream.write(audio_array)
 
