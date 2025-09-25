@@ -130,26 +130,27 @@ def sha256_counter_keystream(key, counter, length):
 
 def encrypt_audio(seq_no, chunk, lorenz_state):
     print("enc", seq_no, lorenz_state)
-    mixed_data = chunk + lorenz_state[0] * 0.1  # Small mixing factor
+    # mixed_data = chunk + lorenz_state[0] * 0.1  # Small mixing factor
 
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)  # Different key slice
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
-
+    print("audio seed", seq_no, audio_seed)
     # Step 5: Generate S-box
     sbox = fisher_yates_sbox(audio_seed)
+    print("sbox", seq_no, sbox)
 
     # Step 6: Convert mixed data to bytes for encryption
     audio_nonce = struct.pack(">Q", seq_no)
-    keystream = sha256_counter_keystream(audio_nonce, 0, len(mixed_data))
-
+    keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
+    print("keystream", seq_no, keystream)
     # Step 7: Encrypt with different pipeline for audio: XOR -> S-box -> Feedback
     encrypted = bytearray()
     prev_byte = 0xA5  # Different IV for audio
 
-    for i, byte in enumerate(mixed_data):
+    for i, byte in enumerate(chunk):
         # XOR with keystream first (different order than video)
         xor_byte = byte ^ keystream[i % len(keystream)]
         # S-box substitution
@@ -191,14 +192,16 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
+    print("audio seed", seq_no, audio_seed)
 
     # Step 4: Generate same S-box and inverse
     sbox = fisher_yates_sbox(audio_seed)
+    print("sbox", seq_no, sbox)
     inv_sbox = inverse_sbox(sbox)
 
     # Step 5: Generate same keystream
     keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
-
+    print("keystream", seq_no, keystream)
     # Step 6: Decrypt by reversing: Feedback -> Inverse S-box -> XOR
     decrypted = bytearray()
     prev_byte = 0xA5  # Same IV as audio encryption
@@ -215,13 +218,8 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     # Step 7: Convert back to float64 and reverse Lorenz mixing
     try:
-        mixed_data = np.frombuffer(bytes(decrypted), dtype=np.float32).astype(
-            np.float64
-        )
-        audio_float = mixed_data - lorenz_state[0] * 0.1  # Reverse the mixing
-        audio_int16 = np.clip(audio_float, -32768, 32767).astype(np.int16)
-
+        audio = np.frombuffer(bytes(decrypted), dtype=np.int16)
         print(f"Audio {seq_no}: Decrypted successfully")
-        return audio_int16.tobytes()
+        return audio.tobytes()
     except Exception as e:
         raise ValueError(f"Audio reconstruction failed for block {seq_no}: {e}")
