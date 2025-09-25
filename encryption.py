@@ -137,15 +137,14 @@ def encrypt_audio(seq_no, chunk, lorenz_state):
     )
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)  # Different key slice
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
-    print("audio seed", seq_no, audio_seed)
+    print("encryption audio seed", seq_no, audio_seed)
     # Step 5: Generate S-box
     sbox = fisher_yates_sbox(audio_seed)
-    print("sbox", seq_no, sbox)
+    print("encryption sbox", seq_no, sbox)
 
     # Step 6: Convert mixed data to bytes for encryption
     audio_nonce = struct.pack(">Q", seq_no)
     keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
-    print("keystream", seq_no, keystream)
     # Step 7: Encrypt with different pipeline for audio: XOR -> S-box -> Feedback
     encrypted = bytearray()
     prev_byte = 0xA5  # Different IV for audio
@@ -192,16 +191,15 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
-    print("audio seed", seq_no, audio_seed)
+    print("decryption audio seed", seq_no, audio_seed)
 
     # Step 4: Generate same S-box and inverse
     sbox = fisher_yates_sbox(audio_seed)
-    print("sbox", seq_no, sbox)
+    print("decryption sbox", seq_no, sbox)
     inv_sbox = inverse_sbox(sbox)
 
     # Step 5: Generate same keystream
     keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
-    print("keystream", seq_no, keystream)
     # Step 6: Decrypt by reversing: Feedback -> Inverse S-box -> XOR
     decrypted = bytearray()
     prev_byte = 0xA5  # Same IV as audio encryption
