@@ -7,7 +7,7 @@ import hmac
 import struct
 import random
 import hashlib
-
+import logging
 
 def derive_keys(master_key: bytes):
     aes_inner = hashlib.sha256(master_key + b"INNER").digest()[:16]  # 128-bit
@@ -129,17 +129,14 @@ def sha256_counter_keystream(key, counter, length):
 
 
 def encrypt_audio(seq_no, chunk, lorenz_state):
-    print("enc", seq_no, lorenz_state)
 
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)  # Different key slice
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
-    print("encryption audio seed", seq_no, audio_seed)
     # Step 5: Generate S-box
     sbox = fisher_yates_sbox(audio_seed)
-    print("encryption sbox", seq_no, sbox)
 
     # Step 6: Convert mixed data to bytes for encryption
     audio_nonce = struct.pack(">Q", seq_no)
@@ -175,7 +172,6 @@ def inverse_sbox(sbox):
 def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     # Step 2: Get same Lorenz state as encryption
-    print("dec", seq_no, lorenz_state)
     # Step 3: Generate same audio seed (different from video)
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
@@ -185,16 +181,14 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
     expected_tag = hmac.new(lorenz_bytes, auth_data, hashlib.sha256).digest()
 
     if not hmac.compare_digest(auth_tag, expected_tag):
-        print(f"Audio {seq_no}: Integrity check failed!")
+        logging.error(f"Audio {seq_no}: Integrity check failed!")
         return np.zeros(0, dtype=np.int16).tobytes()  # Return empty on auth failure
 
     seed_input = lorenz_bytes + struct.pack(">I", seq_no)
     audio_seed = struct.unpack(">I", hashlib.sha256(seed_input).digest()[:4])[0]
-    print("decryption audio seed", seq_no, audio_seed)
 
     # Step 4: Generate same S-box and inverse
     sbox = fisher_yates_sbox(audio_seed)
-    print("decryption sbox", seq_no, sbox)
     inv_sbox = inverse_sbox(sbox)
 
     # Step 5: Generate same keystream
@@ -216,7 +210,7 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
     # Step 7: Convert back to float64 and reverse Lorenz mixing
     try:
         audio = np.frombuffer(bytes(decrypted), dtype="<i2")
-        print(f"Audio {seq_no}: Decrypted successfully")
+        logging.info(f"Audio {seq_no}: Decrypted successfully")
         return audio
     except Exception as e:
         raise ValueError(f"Audio reconstruction failed for block {seq_no}: {e}")
