@@ -209,7 +209,7 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     # Step 7: Convert back to float64 and reverse Lorenz mixing
     try:
-        audio = np.frombuffer(bytes(decrypted), dtype=">i2")
+        audio = np.frombuffer(bytes(decrypted), dtype="int16")
         logging.info(f"Audio {seq_no}: Decrypted successfully")
         return audio
     except Exception as e:
