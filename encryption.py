@@ -170,9 +170,6 @@ def inverse_sbox(sbox):
 
 
 def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
-
-    # Step 2: Get same Lorenz state as encryption
-    # Step 3: Generate same audio seed (different from video)
     lorenz_bytes = struct.pack(
         ">ddd", lorenz_state[0], lorenz_state[1], lorenz_state[2]
     )
