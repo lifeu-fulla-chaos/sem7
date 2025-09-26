@@ -143,7 +143,7 @@ def encrypt_audio(seq_no, chunk, lorenz_state):
     keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
     # Step 7: Encrypt with different pipeline for audio: XOR -> S-box -> Feedback
     encrypted = bytearray()
-    # prev_byte = 0xA5  # Different IV for audio
+    prev_byte = 0xA5  # Different IV for audio
 
     for i, byte in enumerate(chunk):
         # XOR with keystream first (different order than video)
@@ -151,9 +151,9 @@ def encrypt_audio(seq_no, chunk, lorenz_state):
         # S-box substitution
         sub_byte = sbox[xor_byte]
         # Feedback chain
-        # chain_byte = sub_byte ^ prev_byte
-        encrypted.append(sub_byte)
-        # prev_byte = chain_byte
+        chain_byte = sub_byte ^ prev_byte
+        encrypted.append(chain_byte)
+        prev_byte = chain_byte
 
     # Step 8: Generate HMAC
     auth_data = struct.pack(">I", seq_no) + audio_nonce + bytes(encrypted)
@@ -192,17 +192,17 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
     keystream = sha256_counter_keystream(audio_nonce, 0, len(chunk))
     # Step 6: Decrypt by reversing: Feedback -> Inverse S-box -> XOR
     decrypted = bytearray()
-    # prev_byte = 0xA5  # Same IV as audio encryption
+    prev_byte = 0xA5  # Same IV as audio encryption
 
     for i, byte in enumerate(chunk):
         # Reverse feedback chain
-        # chain_byte = byte ^ prev_byte
+        chain_byte = byte ^ prev_byte
         # Reverse S-box substitution
-        xor_byte = inv_sbox[byte]
+        xor_byte = inv_sbox[chain_byte]
         # Reverse XOR with keystream
         original_byte = xor_byte ^ keystream[i % len(keystream)]
         decrypted.append(original_byte)
-        # prev_byte = byte  # Use original ciphertext byte for next iteration
+        prev_byte = byte  # Use original ciphertext byte for next iteration
 
     # Step 7: Convert back to float64 and reverse Lorenz mixing
     try:

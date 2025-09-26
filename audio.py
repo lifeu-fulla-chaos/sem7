@@ -37,7 +37,9 @@ class AudioHandler:
         while time.time() - start_time < duration:
             audio, _ = stream.read(chunk_size)
             print("inp audio", audio[:100])
-            audio_bytes = audio.tobytes()
+            audio_bytes = audio.astype(
+                np.dtype("<i2")
+            ).tobytes()  # Enforce little-endian int16
 
             # Encrypt
             enc_chunk, audio_nonce, auth_tag = encrypt_audio(
