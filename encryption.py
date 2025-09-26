@@ -105,10 +105,10 @@ def decrypt_packet(
 
 def fisher_yates_sbox(seed):
     """Generate S-box using Fisher-Yates shuffle with given seed"""
-    random.seed(seed)
+    rnd = random.Random(seed)
     sbox = list(range(256))
     for i in range(255, 0, -1):
-        j = random.randint(0, i)
+        j = rnd.randint(0, i)
         sbox[i], sbox[j] = sbox[j], sbox[i]
     return sbox
 
@@ -209,8 +209,12 @@ def decrypt_audio(chunk, seq_no, audio_nonce, auth_tag, lorenz_state):
 
     # Step 7: Convert back to float64 and reverse Lorenz mixing
     try:
-        audio = np.frombuffer(bytes(decrypted), dtype="int16")
-        logging.info(f"Audio {seq_no}: Decrypted successfully")
-        return audio
+        audio_bytes = bytes(decrypted)
+        audio_samples = np.frombuffer(audio_bytes, dtype="<i2")
+        logging.info(
+            f"Audio {seq_no}: Decrypted successfully, {audio_samples.size} samples, RMS={np.sqrt(np.mean(audio_samples.astype(np.float64)**2)):.2f}"
+        )
+
+        return audio_bytes
     except Exception as e:
         raise ValueError(f"Audio reconstruction failed for block {seq_no}: {e}")
