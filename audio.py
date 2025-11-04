@@ -42,18 +42,20 @@ class AudioHandler:
             ).tobytes()  # Enforce little-endian int16
 
             # Encrypt
-            enc_chunk, audio_nonce, auth_tag = encrypt_audio(
-                chunk_index, audio_bytes, self.sys.state_history[chunk_index]  # type: ignore
-            )
+            # enc_chunk, audio_nonce, auth_tag = encrypt_audio(
+            #     chunk_index, audio_bytes, self.sys.state_history[chunk_index]  # type: ignore
+            # )
             header = f"{chunk_index:06d}".encode()
             iteration = f"{self.sys.iteration}".encode()
             # Send
             logging.info(
-                f"Master: sending chunk {chunk_index}. size {len(enc_chunk) + len(header) + len(iteration) + len(audio_nonce) + len(auth_tag)} with iteration {self.sys.iteration}"
+                f"Master: sending chunk {chunk_index}. size {len(audio_bytes) + len(header) + len(iteration)} with iteration {self.sys.iteration}"
             )
-            self.udpSendManager.send_data(
-                header + iteration + audio_nonce + auth_tag + enc_chunk
-            )
+            # self.udpSendManager.send_data(
+            #     header + iteration + audio_nonce + auth_tag + enc_chunk
+            # )
+
+            self.udpSendManager.send_data(header + iteration + audio_bytes)
             chunk_index += 1
 
         stream.stop()
@@ -76,23 +78,24 @@ class AudioHandler:
 
                 header = int(data[:6].decode())  # type: ignore
                 iteration = int(data[6:7].decode())  # type: ignore
-                audio_nonce = data[7:15]
-                auth_tag = data[15:47]
-                chunk = data[47:]
+                # audio_nonce = data[7:15]
+                # auth_tag = data[15:47]
+                # chunk = data[47:]
+                chunk = data[7:]
                 logging.info(
-                    f"Received chunk {header}, size {len(chunk) + len(audio_nonce) + len(auth_tag) + 7}, iteration {iteration}"
+                    f"Received chunk {header}, size {len(chunk) + 7}, iteration {iteration}"
                 )
                 if iteration != self.sys.iteration and self.sys.past is not None:
                     state = self.sys.past[header]  # type: ignore
                 else:
                     state = self.sys.state_history[header]  # type: ignore
-                dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
-                audio_array = np.frombuffer(dec_chunk, dtype="<i2")
-                audio_array = np.reshape(audio_array, (-1, channels))  # type: ignore
+                # dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
+                # audio_array = np.frombuffer(dec_chunk, dtype="<i2")
+                audio_array = np.reshape(chunk, (-1, channels))  # type: ignore
                 print("dec audio", audio_array[:100])
                 stream.write(audio_array)
 
-                received_chunks.append(dec_chunk)
+                received_chunks.append(chunk)
 
                 all_audio = b"".join(received_chunks)
         with wave.open("outfile.wav", "wb") as wf:
