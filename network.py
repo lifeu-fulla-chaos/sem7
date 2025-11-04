@@ -53,9 +53,9 @@ class NetworkManager:
         if self.mode == "tcp":
             while True:
                 if self.conn:
-                    chunk = self.conn.recv(4096).decode()
+                    chunk = self.conn.recv(65536).decode()
                 elif self.socket:
-                    chunk = self.socket.recv(4096).decode()
+                    chunk = self.socket.recv(65536).decode()
                 else:
                     raise RuntimeError("No connection available to receive data.")
                 if not chunk:
