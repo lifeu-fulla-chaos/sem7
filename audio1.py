@@ -35,8 +35,10 @@ class AudioHandler:
         self.udpRecvVideo = NetworkManager(HOST, SEND_VIDEO, "udp", None)
         # control
         self._recv_stop = threading.Event()
-        self._audio_thread: Optional[threading.Thread] = None
-        self._video_thread: Optional[threading.Thread] = None
+        self._audio_send_thread: Optional[threading.Thread] = None
+        self._video_receive_thread: Optional[threading.Thread] = None
+        self._audio_receive_thread: Optional[threading.Thread] = None
+        self._video_send_thread: Optional[threading.Thread] = None
 
     def send_video_from_cam_realtime(self, duration=10, fps=20):
         """
@@ -273,18 +275,18 @@ class AudioHandler:
         logging.info(f"Streaming mic audio and webcam video for {duration} seconds...")
         self._recv_stop.clear()
         # start threads
-        self._audio_thread = threading.Thread(
+        self._audio_send_thread = threading.Thread(
             target=self.send_audio_from_mic,
             args=(duration, samplerate, channels, chunk_size, fps),
             daemon=True,
         )
-        self._video_thread = threading.Thread(
+        self._video_send_thread = threading.Thread(
             target=self.send_video_from_cam_realtime,
             args=(duration, fps),
             daemon=True,
         )
-        self._audio_thread.start()
-        self._video_thread.start()
+        self._audio_send_thread.start()
+        self._video_send_thread.start()
         # wait until stop requested
         try:
             while not self._recv_stop.is_set():
@@ -293,22 +295,22 @@ class AudioHandler:
             logging.info("Interrupted by user, stopping send")
             self._recv_stop.set()
         # join threads
-        self._audio_thread.join()
-        self._video_thread.join()
+        self._audio_send_thread.join()
+        self._video_send_thread.join()
         logging.info("Sender: finished audio/video streaming")
 
     def receive_audio_realtime(self, samplerate=44100, channels=1):
         logging.info("Receiving audio and video streams...")
         self._recv_stop.clear()
         # start threads
-        self._audio_thread = threading.Thread(
+        self._audio_receive_thread = threading.Thread(
             target=self._audio_receive_loop, args=(samplerate, channels), daemon=True
         )
-        self._video_thread = threading.Thread(
+        self._video_receive_thread = threading.Thread(
             target=self._video_receive_loop, daemon=True
         )
-        self._audio_thread.start()
-        self._video_thread.start()
+        self._audio_receive_thread.start()
+        self._video_receive_thread.start()
         # wait until stop requested
         try:
             while not self._recv_stop.is_set():
@@ -317,7 +319,7 @@ class AudioHandler:
             logging.info("Interrupted by user, stopping receive")
             self._recv_stop.set()
         # join threads
-        self._audio_thread.join()
-        self._video_thread.join()
+        self._audio_receive_thread.join()
+        self._video_receive_thread.join()
         logging.info("Receiver: finished audio/video playback")
 
