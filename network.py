@@ -13,7 +13,8 @@ class NetworkManager:
         self.peer_addr = peer_addr
         if self.mode == "udp":
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.socket.bind((self.host, self.port))
+            if peer_addr is None:
+                self.socket.bind((self.host, self.port))
         else:
             self.socket = None
         self.conn = None
@@ -67,6 +68,7 @@ class NetworkManager:
         elif self.mode == "udp":
             while True:
                 data, _ = self.socket.recvfrom(65536)  # type: ignore
+                print(len(data))
                 return data
 
     def send(self, obj):

@@ -96,7 +96,6 @@ class AudioHandler:
                     data = buffer.tobytes()
                     vheader = f"{frame_index:06d}".encode()
                     viteration = f"{self.sys.iteration}".encode()
-                    print(len(data), type(data))
                     try:
                         self.udpSendVideo.send_data(vheader + viteration + data)
                     except Exception as e:
@@ -193,10 +192,12 @@ class AudioHandler:
             while not self._recv_stop.is_set():
                 try:
                     vdata = self.udpRecvVideo.receive_data()
+                    print("vdata", vdata)
                 except Exception as e:
                     logging.warning("Video receive error: %s", e)
                     continue
                 if not vdata:
+                    print("No video data")
                     continue
                 if vdata == b"EOF":
                     logging.info("Video EOF received")
