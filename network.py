@@ -15,6 +15,8 @@ class NetworkManager:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             if peer_addr is None:
                 self.socket.bind((self.host, self.port))
+            self.socket.setblocking(False)
+            self.socket.settimeout(0.4)
         else:
             self.socket = None
         self.conn = None
