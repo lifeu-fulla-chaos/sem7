@@ -96,6 +96,7 @@ class AudioHandler:
                     data = buffer.tobytes()
                     vheader = f"{frame_index:06d}".encode()
                     viteration = f"{self.sys.iteration}".encode()
+                    print(len(data), type(data))
                     try:
                         self.udpSendVideo.send_data(vheader + viteration + data)
                     except Exception as e:
