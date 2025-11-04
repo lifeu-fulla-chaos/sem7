@@ -9,6 +9,7 @@ from network import NetworkManager
 from lorenz_system import LorenzSystem
 import threading
 from typing import Optional
+
 # ...existing code...
 
 
@@ -17,6 +18,8 @@ PORT_UDP = 4000
 SEND_UDP = 4001
 PORT_VIDEO = 5000
 SEND_VIDEO = 5001
+
+
 class AudioHandler:
     def __init__(self, sys: LorenzSystem, recv_host):
         self.sys = sys
@@ -35,7 +38,56 @@ class AudioHandler:
         self._audio_thread: Optional[threading.Thread] = None
         self._video_thread: Optional[threading.Thread] = None
 
-    def send_audio_from_mic_realtime(
+    def send_video_from_cam_realtime(self, duration=10, fps=20):
+        """
+        Capture video frames from the webcam and send them in real time over UDP.
+        Does not interfere with audio streaming. Can be used independently.
+        """
+        logging.info(f"Streaming webcam video for {duration} seconds...")
+
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            logging.warning("Could not open webcam.")
+            return
+
+        start_time = time.time()
+        frame_index = 0
+        next_frame_time = 0
+
+        while time.time() - start_time < duration:
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            # Compress frame to JPEG to reduce bandwidth
+            _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            frame_bytes = buffer.tobytes()
+
+            # Header and Lorenz iteration
+            header = f"{frame_index:06d}".encode()
+            iteration = f"{self.sys.iteration}".encode()
+
+            try:
+                self.udpSendVideo.send_data(header + iteration + frame_bytes)
+                logging.debug(
+                    f"Sent video frame {frame_index}, {len(frame_bytes)} bytes"
+                )
+            except Exception as e:
+                logging.warning("Video send error: %s", e)
+
+            frame_index += 1
+            next_frame_time += 1 / fps
+            time.sleep(max(0, next_frame_time - (time.time() - start_time)))
+
+        cap.release()
+        try:
+            self.udpSendVideo.send_data(b"EOF")
+        except Exception:
+            pass
+
+        logging.info("Finished standalone video streaming")
+
+    def send_audio_from_mic(
         self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=20
     ):
         logging.info(f"Streaming mic audio and webcam video for {duration} seconds...")
@@ -121,7 +173,6 @@ class AudioHandler:
             samplerate=samplerate, channels=channels, dtype="int16"
         )
         stream.start()
-        received_chunks = []
         try:
             while not self._recv_stop.is_set():
                 try:
@@ -176,22 +227,9 @@ class AudioHandler:
                     logging.warning("Audio stream write failed: %s", e)
                     continue
 
-                received_chunks.append(chunk)
         finally:
             stream.stop()
             stream.close()
-            # save raw received audio as wav
-            if received_chunks:
-                all_audio = b"".join(received_chunks)
-                try:
-                    with wave.open("received_audio.wav", "wb") as wf:
-                        wf.setnchannels(channels)
-                        wf.setsampwidth(2)  # int16 = 2 bytes
-                        wf.setframerate(samplerate)
-                        wf.writeframes(all_audio)
-                    logging.info("Saved received audio to received_audio.wav")
-                except Exception as e:
-                    logging.warning("Failed to write WAV: %s", e)
             logging.info("Audio receive thread exiting")
 
     def _video_receive_loop(self, window_name="Received Video"):
@@ -229,12 +267,46 @@ class AudioHandler:
             cv2.destroyAllWindows()
             logging.info("Video receive thread exiting")
 
+    def send_audio_from_mic_realtime(
+        self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=20
+    ):
+        logging.info(f"Streaming mic audio and webcam video for {duration} seconds...")
+        self._recv_stop.clear()
+        # start threads
+        self._audio_thread = threading.Thread(
+            target=self.send_audio_from_mic,
+            args=(duration, samplerate, channels, chunk_size, fps),
+            daemon=True,
+        )
+        self._video_thread = threading.Thread(
+            target=self.send_video_from_cam_realtime,
+            args=(duration, fps),
+            daemon=True,
+        )
+        self._audio_thread.start()
+        self._video_thread.start()
+        # wait until stop requested
+        try:
+            while not self._recv_stop.is_set():
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logging.info("Interrupted by user, stopping send")
+            self._recv_stop.set()
+        # join threads
+        self._audio_thread.join()
+        self._video_thread.join()
+        logging.info("Sender: finished audio/video streaming")
+
     def receive_audio_realtime(self, samplerate=44100, channels=1):
         logging.info("Receiving audio and video streams...")
         self._recv_stop.clear()
         # start threads
-        self._audio_thread = threading.Thread(target=self._audio_receive_loop, args=(samplerate, channels), daemon=True)
-        self._video_thread = threading.Thread(target=self._video_receive_loop, daemon=True)
+        self._audio_thread = threading.Thread(
+            target=self._audio_receive_loop, args=(samplerate, channels), daemon=True
+        )
+        self._video_thread = threading.Thread(
+            target=self._video_receive_loop, daemon=True
+        )
         self._audio_thread.start()
         self._video_thread.start()
         # wait until stop requested
@@ -248,4 +320,4 @@ class AudioHandler:
         self._audio_thread.join()
         self._video_thread.join()
         logging.info("Receiver: finished audio/video playback")
-# ...existing code...
+
