@@ -36,7 +36,7 @@ class AudioHandler:
         chunk_index = 0
         while time.time() - start_time < duration:
             audio, _ = stream.read(chunk_size)
-            print("inp audio", audio[:100])
+            print("inp audio", audio[:10])
             audio_bytes = audio.astype(
                 np.dtype("<i2")
             ).tobytes()  # Enforce little-endian int16
@@ -90,9 +90,9 @@ class AudioHandler:
                 else:
                     state = self.sys.state_history[header]  # type: ignore
                 # dec_chunk = decrypt_audio(chunk, header, audio_nonce, auth_tag, state)  # type: ignore
-                # audio_array = np.frombuffer(dec_chunk, dtype="<i2")
+                audio_array = np.frombuffer(chunk, dtype="<i2")
                 audio_array = np.reshape(chunk, (-1, channels))  # type: ignore
-                print("dec audio", audio_array[:100])
+                print("dec audio", audio_array[:10])
                 stream.write(audio_array)
 
                 received_chunks.append(chunk)
