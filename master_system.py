@@ -7,7 +7,7 @@ from network import NetworkManager
 from rsa_sharing import encrypt_master_key, derive_keys
 import random
 import time
-from audio import AudioHandler
+from audio1 import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.106"

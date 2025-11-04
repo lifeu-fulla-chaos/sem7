@@ -5,7 +5,7 @@ from lorenz_system import LorenzSystem, LorenzParameters
 from encryption import *
 from rsa_sharing import generate_rsa_keys, decrypt_master_key, derive_keys
 from network import NetworkManager
-from audio import AudioHandler
+from audio1 import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
 RECV_HOST = "192.168.0.104"
