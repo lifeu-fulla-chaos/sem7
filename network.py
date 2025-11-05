@@ -70,7 +70,6 @@ class NetworkManager:
         elif self.mode == "udp":
             while True:
                 data, _ = self.socket.recvfrom(65536)  # type: ignore
-                print(len(data))
                 return data
 
     def send(self, obj):
