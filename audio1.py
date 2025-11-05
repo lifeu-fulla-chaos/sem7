@@ -41,7 +41,7 @@ class AudioHandler:
         self._video_send_thread: Optional[threading.Thread] = None
 
     def send_audio_from_mic_realtime(
-        self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=30
+        self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=60
     ):
         logging.info(f"Streaming mic audio and webcam video for {duration} seconds...")
 
