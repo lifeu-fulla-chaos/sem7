@@ -41,7 +41,7 @@ class AudioHandler:
         self._video_send_thread: Optional[threading.Thread] = None
 
     def send_audio_from_mic_realtime(
-        self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=20
+        self, duration=10, samplerate=44100, channels=1, chunk_size=8192, fps=30
     ):
         logging.info(f"Streaming mic audio and webcam video for {duration} seconds...")
 
@@ -192,7 +192,6 @@ class AudioHandler:
             while not self._recv_stop.is_set():
                 try:
                     vdata = self.udpRecvVideo.receive_data()
-                    print("vdata", vdata)
                 except Exception as e:
                     logging.warning("Video receive error: %s", e)
                     continue
