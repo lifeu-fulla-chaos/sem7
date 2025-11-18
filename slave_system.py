@@ -8,7 +8,7 @@ from network import NetworkManager
 from audio1 import AudioHandler
 
 HOST, PORT = "0.0.0.0", 3000
-RECV_HOST = "192.168.0.104"
+RECV_HOST = "192.168.0.101"
 logging.basicConfig(level=logging.INFO)
 
 
