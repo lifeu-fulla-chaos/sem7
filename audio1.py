@@ -159,14 +159,6 @@ class AudioHandler:
                     logging.debug("Empty audio chunk received, skipping")
                     continue
 
-                # align to channels
-                if audio_array.size % channels != 0:
-                    valid_len = (audio_array.size // channels) * channels
-                    if valid_len == 0:
-                        logging.debug("Chunk too small after trimming, skipping")
-                        continue
-                    audio_array = audio_array[:valid_len]
-
                 try:
                     audio_array = audio_array.reshape(-1, channels)
                 except Exception as e:
