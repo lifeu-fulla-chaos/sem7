@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
 """
-udp_video_lowlatency.py
+udp_video_lowlatency_no_local_preview.py
 
-Low-latency 2-way video over UDP for same-LAN peers.
-Hardcode REMOTE_IP to the other machine's LAN IP and run on both machines.
+Same as the original script but with the local preview removed — only the received video is shown.
+
+How to use:
+ - Edit REMOTE_IP to point to the other peer's LAN IP and run on both machines.
+ - Press 'q' in the *Remote* window to quit.
 
 Dependencies:
     pip install opencv-python numpy
-
-How to use:
- - Edit the hardcoded settings below so each peer's REMOTE_IP points to the other.
- - Run: python3 udp_video_lowlatency.py
- - Press 'q' in any window to quit.
-
-Notes / tuning:
- - WIDTH/HEIGHT: smaller -> lower bandwidth and lower encode time (e.g. 320x240)
- - JPEG_QUALITY: lower -> less bytes -> lower latency, but worse image
- - MTU_PAYLOAD: set < 1500; 1200 is safe for most LANs.
- - FRAME_TIMEOUT: short timeout to drop incomplete frames quickly
- - SO_SNDBUF / SO_RCVBUF are increased for smoother bursts on busy networks
- - If you want even lower latency, use hardware h264 encode (ffmpeg/gstreamer) instead.
 """
 
 import cv2
@@ -30,10 +20,10 @@ import struct
 import time
 
 # ------------------ HARD-CODED SETTINGS ------------------
-REMOTE_IP = "192.168.1.100"  # <-- set to the other machine's LAN IP
+REMOTE_IP = "192.168.1.102"  # <-- set to the other machine's LAN IP
 REMOTE_PORT = 5000  # remote UDP port
 LOCAL_PORT = 5000  # local UDP port to bind
-CAP_DEVICE = 0  # camera index
+CAP_DEVICE = 0  # camera index (used by sender)
 WIDTH = 320  # capture width (smaller = faster)
 HEIGHT = 240  # capture height
 JPEG_QUALITY = 45  # 0-100 (lower is smaller/faster)
@@ -53,7 +43,7 @@ running = True
 # Sender: encodes frames and sends split packets
 def sender_thread():
     global sock, running
-    cap = cv2.VideoCapture(CAP_DEVICE, cv2.CAP_ANY)
+    cap = cv2.VideoCapture(CAP_DEVICE, cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
 
@@ -64,7 +54,6 @@ def sender_thread():
 
     frame_seq = 1
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
-    last_send_time = 0.0
 
     print(f"Sender: sending to {REMOTE_IP}:{REMOTE_PORT}")
 
@@ -103,9 +92,6 @@ def sender_thread():
                 pass
 
         frame_seq = (frame_seq + 1) & 0xFFFFFFFF
-        # no sleep here to minimize added latency; capture/encode cost throttles loop
-        # optional minimal throttle if you want to cap fps:
-        # time.sleep(0.002)
     cap.release()
 
 
@@ -120,7 +106,6 @@ def receiver_thread():
     global sock, running
     print(f"Receiver: listening on port {LOCAL_PORT}")
     sock.settimeout(0.02)
-    last_display_seq = 0
 
     while running:
         try:
@@ -160,18 +145,15 @@ def receiver_thread():
                 entry["chunks"][chunk_idx] = payload
                 entry["received"] += 1
 
-            # if frame complete: decode and display, but only if it's newer than last displayed
+            # if frame complete: decode and display
             if entry["received"] == entry["total"]:
-                # assemble
                 parts = [entry["chunks"].get(i, b"") for i in range(entry["total"])]
                 frame_bytes = b"".join(parts)
                 try:
                     arr = np.frombuffer(frame_bytes, dtype=np.uint8)
                     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
                     if img is not None:
-                        # show immediately the newest complete frame
                         # remove older frames to avoid backlog
-                        # drop older-than-current
                         for k in list(frames.keys()):
                             if k <= frame_seq:
                                 frames.pop(k, None)
@@ -184,7 +166,6 @@ def receiver_thread():
                 except Exception:
                     pass
     # end while
-    # final cleanup
     cv2.destroyAllWindows()
 
 
@@ -223,31 +204,15 @@ def main():
     recv_t.start()
     send_t.start()
 
-    # local preview (show local camera in main thread)
-    local_cap = cv2.VideoCapture(CAP_DEVICE, cv2.CAP_ANY)
-    local_cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-    local_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
-    if not local_cap.isOpened():
-        print("Warning: cannot open capture device for local preview.")
-
+    # No local preview: main thread just keeps the program alive until stopped by
+    # pressing 'q' in the Remote window or by Ctrl-C.
     try:
         while running:
-            if local_cap.isOpened():
-                ret, frame = local_cap.read()
-                if ret:
-                    cv2.imshow("Local", frame)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        stop()
-                        break
-                else:
-                    time.sleep(0.01)
-            else:
-                time.sleep(0.05)
+            time.sleep(0.05)
     except KeyboardInterrupt:
         stop()
     finally:
         running = False
-        local_cap.release()
         time.sleep(0.05)
         cv2.destroyAllWindows()
         sock.close()
